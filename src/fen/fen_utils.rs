@@ -85,9 +85,8 @@ fn load_board(board_info: &str, fen_info: &mut FENInfo) -> Result<(), String> {
                     'Q' => fen_info.board_state[rank][file] = Some(Piece::new(White, Queen)),
                     'K' => fen_info.board_state[rank][file] = Some(Piece::new(White, King)),
                     'P' => fen_info.board_state[rank][file] = Some(Piece::new(White, Pawn)),
-                     _  => if !is_digit {
-                                return Err(format!("Invalid character '{}' while reading the board state from FEN", ch));
-                            }
+                     _  if is_digit => {}, // Already handled
+                     _  => return Err(format!("Invalid character '{}' while reading the board state from FEN", ch))
                 }
 
                 file += 1;
