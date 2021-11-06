@@ -2,11 +2,12 @@ use std::fmt::Display;
 use std::result::Result;
 
 use super::Piece;
-use crate::game_elements::{Color, Position, CastlingRights};
+use crate::game_elements::{CastlingRights, Color, Move, Position};
 use crate::fen::{read_fen, DEFAULT_FEN};
 
 pub type BoardSquares = [[Option<Piece>; 8]; 8];
 
+#[derive(Debug, Clone, Copy)]
 pub struct Board {
     castling_rights: CastlingRights,
     en_passant_target: Option<Position>,
@@ -37,6 +38,26 @@ impl Board {
         // The default FEN is hard-coded and correct,
         // so we can unwrap it safely
         Board::from_fen(DEFAULT_FEN).unwrap()
+    }
+
+    pub fn is_check(&self, color: Color) -> bool {
+        // todo
+        false
+    }
+
+    pub fn make_move(&self, movement: Move, check_legality: bool) -> Self {
+        // todo
+        if check_legality {
+            // This move was received from the user, check that it is indeed
+            // a legal move
+            // TODO
+        }
+
+        *self // TODO
+    }
+
+    pub fn get_pos(&self, pos: &Position) -> &Option<Piece> {
+        &self.squares[pos.rank_u()][pos.file_u()]
     }
 }
 
