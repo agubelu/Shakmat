@@ -1,29 +1,32 @@
 use std::result::Result;
 
-pub const UP: (isize, isize) = (0, -1);
-pub const DOWN: (isize, isize) = (0, 1);
-pub const LEFT: (isize, isize) = (-1, 0);
-pub const RIGHT: (isize, isize) = (1, 0);
-pub const UP_LEFT: (isize, isize) = (-1, -1);
-pub const UP_RIGHT: (isize, isize) = (1, -1);
-pub const DOWN_LEFT: (isize, isize) = (-1, 1);
-pub const DOWN_RIGHT: (isize, isize) = (1, 1);
+type CoordElem = isize;
+type Coord = (CoordElem, CoordElem);
 
-pub const KNIGHT_MOVES: [(isize, isize); 8] = [(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)];
-pub const KING_MOVES: [(isize, isize); 8] = [UP, DOWN, LEFT, RIGHT, UP_LEFT, UP_RIGHT, DOWN_LEFT, DOWN_RIGHT];
+pub const UP: Coord = (0, 1);
+pub const DOWN: Coord = (0, -1);
+pub const LEFT: Coord = (-1, 0);
+pub const RIGHT: Coord = (1, 0);
+pub const UP_LEFT: Coord = (-1, 1);
+pub const UP_RIGHT: Coord = (1, 1);
+pub const DOWN_LEFT: Coord = (-1, -1);
+pub const DOWN_RIGHT: Coord = (1, -1);
+
+pub const KNIGHT_MOVES: [Coord; 8] = [(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)];
+pub const KING_MOVES: [Coord; 8] = [UP, DOWN, LEFT, RIGHT, UP_LEFT, UP_RIGHT, DOWN_LEFT, DOWN_RIGHT];
     
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Position {
-    file: isize,
-    rank: isize
+    pub file: CoordElem,
+    pub rank: CoordElem
 }
 
 impl Position {
-    pub fn new_0based(file: isize, rank: isize) -> Self {
+    pub fn new_0based(file: CoordElem, rank: CoordElem) -> Self {
         Position { file, rank}
     }
 
-    pub fn new_1based(file: isize, rank: isize) -> Self {
+    pub fn new_1based(file: CoordElem, rank: CoordElem) -> Self {
         Position { file: file - 1, rank: rank - 1}
     }
 
@@ -61,7 +64,7 @@ impl Position {
         Ok(Position::new_0based(file, rank))
     }
 
-    pub fn to_notation(&self) -> String {
+    pub fn as_notation(&self) -> String {
         let file = match self.file {
             0 => 'a',
             1 => 'b',
@@ -101,6 +104,10 @@ impl Position {
             .map(|(df, dr)| Position::new_0based(self.file + df, self.rank + dr))
             .filter(|pos| pos.is_valid())
             .collect()
+    }
+
+    pub fn add_delta(&self, delta: &Coord) -> Position {
+        Position::new_0based(self.file + delta.0, self.rank + delta.1)
     }
 
     pub fn file_u(&self) -> usize {

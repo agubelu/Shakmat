@@ -7,3 +7,21 @@ pub enum Move {
     LongCastle,
     PawnPromotion { from: Position, to: Position, promote_to: PieceType}
 }
+
+impl Move {
+    pub fn to(&self) -> &Position {
+        match self {
+            Move::NormalMove { to, .. } => to,
+            Move::PawnPromotion { to, .. } => to,
+            _ => unimplemented!()
+        }
+    }
+
+    pub fn from(&self) -> &Position {
+        match self {
+            Move::NormalMove { from, .. } => from,
+            Move::PawnPromotion { from, .. } => from,
+            _ => unimplemented!()
+        }
+    }
+}

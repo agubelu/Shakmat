@@ -59,6 +59,10 @@ impl Board {
     pub fn get_pos(&self, pos: &Position) -> &Option<Piece> {
         &self.squares[pos.rank_u()][pos.file_u()]
     }
+
+    pub fn get_en_passant_target(&self) -> &Option<Position> {
+        &self.en_passant_target
+    }
 }
 
 impl Display for Board {
