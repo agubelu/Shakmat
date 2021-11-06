@@ -48,4 +48,12 @@ impl Position {
 
         Ok(Position::new_0based(file, rank))
     }
+
+    pub fn file(&self) -> usize {
+        self.file
+    }
+
+    pub fn rank(&self) -> usize {
+        self.rank
+    }
 }

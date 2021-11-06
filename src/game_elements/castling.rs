@@ -2,30 +2,30 @@ use crate::game_elements::Color;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CastlingRights {
-    pub WhiteKingSide: bool,
-    pub WhiteQueenSide: bool,
-    pub BlackKingSide: bool,
-    pub BlackQueenSide: bool,
+    pub white_kingside: bool,
+    pub white_queenside: bool,
+    pub black_kingside: bool,
+    pub black_queenside: bool,
 }
 
 impl Default for CastlingRights {
     fn default() -> Self {
         CastlingRights {
-            WhiteKingSide: true,
-            WhiteQueenSide: true,
-            BlackKingSide: true,
-            BlackQueenSide: true,
+            white_kingside: true,
+            white_queenside: true,
+            black_kingside: true,
+            black_queenside: true,
         }
     }
 }
 
 impl CastlingRights {
-    pub fn new(WhiteKingSide: bool, WhiteQueenSide: bool, BlackKingSide: bool, BlackQueenSide: bool) -> Self {
+    pub fn new(white_kingside: bool, white_queenside: bool, black_kingside: bool, black_queenside: bool) -> Self {
         CastlingRights {
-            WhiteKingSide,
-            WhiteQueenSide,
-            BlackKingSide,
-            BlackQueenSide,
+            white_kingside,
+            white_queenside,
+            black_kingside,
+            black_queenside,
         }
     }
 
@@ -35,15 +35,29 @@ impl CastlingRights {
 
     pub fn update_kingside(&mut self, color: Color, can_castle: bool) {
         match color {
-            Color::White => self.WhiteKingSide = can_castle,
-            Color::Black => self.BlackKingSide = can_castle,
+            Color::White => self.white_kingside = can_castle,
+            Color::Black => self.black_kingside = can_castle,
         }
     }
 
     pub fn update_queenside(&mut self, color: Color, can_castle: bool) {
         match color {
-            Color::White => self.WhiteQueenSide = can_castle,
-            Color::Black => self.BlackQueenSide = can_castle,
+            Color::White => self.white_queenside = can_castle,
+            Color::Black => self.black_queenside = can_castle,
+        }
+    }
+
+    pub fn can_castle_kingside(&self, color: Color) -> bool {
+        match color {
+            Color::White => self.white_kingside,
+            Color::Black => self.black_kingside,
+        }
+    }
+
+    pub fn can_castle_queenside(&self, color: Color) -> bool {
+        match color {
+            Color::White => self.white_queenside,
+            Color::Black => self.black_queenside,
         }
     }
 }
