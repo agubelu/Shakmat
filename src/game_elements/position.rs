@@ -1,4 +1,6 @@
 use std::result::Result;
+use super::Color;
+use crate::Board;
 
 type CoordElem = isize;
 type Coord = (CoordElem, CoordElem);
@@ -104,6 +106,28 @@ impl Position {
             .map(|(df, dr)| Position::new_0based(self.file + df, self.rank + dr))
             .filter(|pos| pos.is_valid())
             .collect()
+    }
+
+    // Traces rays from the position in a certain direction until the edge of
+    // the board, or the first piece hit of the opposite color.
+    // Returns the list of visited positions.
+    pub fn trace_ray(&self, board: &Board, dir: Coord, color_moving: Color) -> Vec<Position> {
+        let mut positions = Vec::new();
+        let mut next_pos = self.add_delta(&dir);
+
+        while next_pos.is_valid() {
+            if let Some(piece) = board.get_pos(&next_pos) {
+                if piece.color != color_moving {
+                    // The color of the piece that is moving can capture that piece
+                    positions.push(next_pos);
+                }
+                break;
+            }
+            positions.push(next_pos);
+            next_pos = next_pos.add_delta(&dir);
+        }
+
+        positions
     }
 
     pub fn add_delta(&self, delta: &Coord) -> Position {

@@ -29,7 +29,9 @@ impl Piece {
             King => self.get_moves_king(pos, board),
             Knight => self.get_moves_knight(pos, board),
             Pawn => self.get_moves_pawn(pos, board),
-            _ => unimplemented!()
+            Bishop => self.get_moves_bishop(pos, board),
+            Rook => self.get_moves_rook(pos, board),
+            Queen => self.get_moves_queen(pos, board),
         }
     }
 
@@ -85,13 +87,33 @@ impl Piece {
             .collect()
     }
 
+    fn get_moves_bishop(&self, pos: &Position, board: &Board) -> Vec<Move> {
+        [UP_LEFT, UP_RIGHT, DOWN_LEFT, DOWN_RIGHT].iter()
+            .flat_map(|dir| pos.trace_ray(board, *dir, self.color))
+            .map(|future_pos| Move::NormalMove { from: *pos, to: future_pos })
+            .collect()
+    }
+
+    fn get_moves_rook(&self, pos: &Position, board: &Board) -> Vec<Move> {
+        [UP, DOWN, LEFT, RIGHT].iter()
+            .flat_map(|dir| pos.trace_ray(board, *dir, self.color))
+            .map(|future_pos| Move::NormalMove { from: *pos, to: future_pos })
+            .collect()
+    }
+
+    fn get_moves_queen(&self, pos: &Position, board: &Board) -> Vec<Move> {
+        let mut moves = self.get_moves_bishop(pos, board);
+        moves.extend(self.get_moves_rook(pos, board));
+        moves
+    }
+
     fn get_moves_pawn(&self, pos: &Position, board: &Board) -> Vec<Move> {
         let fwd_direction = if self.color == White { UP } else { DOWN };
         let starting_rank = if self.color == White { 1 } else { 6 };
         let promotion_rank = if self.color == White { 7 } else { 0 };
         let capture_dirs = if self.color == White { [UP_LEFT, UP_RIGHT] } else { [DOWN_LEFT, DOWN_RIGHT] };
 
-        let mut moves = vec![];
+        let mut moves = Vec::with_capacity(5);
 
         // Check for 1 move forward
         let move_fwd = pos.add_delta(&fwd_direction);
@@ -99,7 +121,7 @@ impl Piece {
             moves.push(Move::NormalMove { from: *pos, to: move_fwd });
         }
 
-        // Check for 2 moves forward, only possible if pawn is on starting rank
+        // Check for 2 moves forward, only possible if pawn is on the starting rank
         // and there is no piece in front of it, a.k.a., we already have 1 move
         if pos.rank == starting_rank {
             let move_2fwd = move_fwd.add_delta(&fwd_direction);
