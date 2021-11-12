@@ -1,9 +1,8 @@
 use std::fmt::Display;
 use std::result::Result;
 
-use super::Piece;
-use crate::game_elements::{CastlingRights, Color, Move, Position};
-use crate::fen::{read_fen, DEFAULT_FEN};
+use crate::chess::{CastlingRights, Color, Move, Position, Piece};
+use crate::chess::fen::{read_fen, DEFAULT_FEN};
 
 pub type BoardSquares = [[Option<Piece>; 8]; 8];
 
@@ -69,7 +68,6 @@ impl Display for Board {
 
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "{:?} to play, turn #{}\n", self.turn, self.full_turns)?;
-
         writeln!(f, "  ┌───┬───┬───┬───┬───┬───┬───┬───┐")?;
 
         for rank in (0..8).rev() {
@@ -88,7 +86,6 @@ impl Display for Board {
                 writeln!(f, "  ├───┼───┼───┼───┼───┼───┼───┼───┤")?;
             }
         }
-
 
         writeln!(f, "  └───┴───┴───┴───┴───┴───┴───┴───┘")?;
         writeln!(f, "    a   b   c   d   e   f   g   h ")?;

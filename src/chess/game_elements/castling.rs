@@ -1,4 +1,4 @@
-use crate::game_elements::Color;
+use super::Color;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CastlingRights {

@@ -1,7 +1,5 @@
 use std::result::Result;
-use super::Color;
-use crate::board::{Piece, Board};
-use crate::game_elements::PieceType;
+use crate::chess::{Piece, Board, PieceType, Color};
 
 type CoordElem = i8;
 type Coord = (CoordElem, CoordElem);

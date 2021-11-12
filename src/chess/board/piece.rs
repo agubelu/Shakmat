@@ -1,9 +1,7 @@
 use std::fmt::{Display, Result};
 
-use crate::game_elements::{Color::*, PieceType::*};
-use crate::game_elements::{Color, PieceType, Position, Move};
-use crate::game_elements::position::{UP, DOWN, LEFT, RIGHT, UP_LEFT, UP_RIGHT, DOWN_LEFT, DOWN_RIGHT};
-use crate::board::Board;
+use crate::chess::{Board, Color, PieceType, Position, Move, Color::*, PieceType::*};
+use crate::chess::position::{UP, DOWN, LEFT, RIGHT, UP_LEFT, UP_RIGHT, DOWN_LEFT, DOWN_RIGHT};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Piece {

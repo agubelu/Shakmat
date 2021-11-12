@@ -1,9 +1,6 @@
-mod game_elements;
-mod board;
-mod fen;
+mod chess;
 
-use board::Board;
-use game_elements::{Position, Move, Color};
+use chess::{Board, Position, Move, Color};
 
 use std::io::{stdin,stdout,Write};
 
