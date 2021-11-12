@@ -3,24 +3,29 @@ mod board;
 mod fen;
 
 use board::Board;
-use game_elements::{Position, Move};
+use game_elements::{Position, Move, Color};
+
+use std::io::{stdin,stdout,Write};
 
 fn main() {
     
-    let board = Board::from_fen("2P5/1B4B1/8/3p3p/P3p3/1Q3B2/1p6/3P4 w - - 0 1").unwrap();
+    let board = Board::from_fen("R7/8/r7/2N3K1/8/1P6/P1P5/7B w - - 0 1").unwrap();
     println!("{}", board);
 
-    let pos = Position::from_notation("b3").unwrap();
-    let piece = board.get_pos(&pos).unwrap();
-    piece.get_legal_moves(&pos, &board)
-        .iter()
-        .for_each(|m| {
-            if let Move::NormalMove{from, to} = m {
-                println!("{}", to.as_notation())
-            } else if let Move::PawnPromotion{from, to, promote_to} = m {
-                println!("{} -> {:?}", to.as_notation(), promote_to)
-            }
-        });
+    loop {        
+        let mut s =String::new();
+        print!("Pos: ");
+        stdout().flush();
+        stdin().read_line(&mut s).expect("Did not enter a correct string");
+
+        match Position::from_notation(s.trim()) {
+            Ok(position) => {
+                println!("White: {}, black: {}", position.is_attacked_by(&board, Color::White),
+            position.is_attacked_by(&board, Color::Black));
+            },
+            Err(e) => println!("{}", e)
+        }
+    }
 
 
 }

@@ -1,8 +1,9 @@
 use std::result::Result;
 use super::Color;
-use crate::Board;
+use crate::board::{Piece, Board};
+use crate::game_elements::PieceType;
 
-type CoordElem = isize;
+type CoordElem = i8;
 type Coord = (CoordElem, CoordElem);
 
 pub const UP: Coord = (0, 1);
@@ -26,10 +27,6 @@ pub struct Position {
 impl Position {
     pub fn new_0based(file: CoordElem, rank: CoordElem) -> Self {
         Position { file, rank}
-    }
-
-    pub fn new_1based(file: CoordElem, rank: CoordElem) -> Self {
-        Position { file: file - 1, rank: rank - 1}
     }
 
     pub fn from_notation(pos: &str) -> Result<Self, String> {
@@ -110,16 +107,20 @@ impl Position {
 
     // Traces rays from the position in a certain direction until the edge of
     // the board, or the first piece hit of the opposite color.
-    // Returns the list of visited positions.
-    pub fn trace_ray(&self, board: &Board, dir: Coord, color_moving: Color) -> Vec<Position> {
+    // Returns the list of visited positions and the piece found at the end,
+    // or None if the ray ends at the edge of the board.
+    pub fn trace_ray<'a>(&self, board: &'a Board, dir: Coord, color_moving: Color) -> (Vec<Position>, Option<&'a Piece>) {
         let mut positions = Vec::new();
         let mut next_pos = self.add_delta(&dir);
+        let mut piece_found = None;
 
         while next_pos.is_valid() {
             if let Some(piece) = board.get_pos(&next_pos) {
-                if piece.color != color_moving {
+                piece_found = Some(piece);
+                if piece.color() != color_moving {
                     // The color of the piece that is moving can capture that piece
                     positions.push(next_pos);
+                    return (positions, Some(piece));
                 }
                 break;
             }
@@ -127,7 +128,60 @@ impl Position {
             next_pos = next_pos.add_delta(&dir);
         }
 
-        positions
+        (positions, piece_found)
+    }
+
+    pub fn is_attacked_by(&self, board: &Board, attacker_color: Color) -> bool {
+        // Check for horsies
+        for pos in self.knight_jumps() {
+            if matches!(board.get_pos(&pos), Some(Piece{color, piece_type: PieceType::Knight}) if *color == attacker_color) {
+                return true;
+            }
+        }
+
+        // Check for sliding pieces and pawns. First, diagonals
+        for dir in [UP_LEFT, UP_RIGHT, DOWN_LEFT, DOWN_RIGHT].iter() {
+            let (moves, piece_opt) = self.trace_ray(board, *dir, !attacker_color);
+            let piece = match piece_opt {
+                // The piece must be of the attacking color
+                Some(p) if p.color() == attacker_color => p,
+                _ => continue,
+            };
+
+            // The piece must be: a queen, a bishop or
+            // - a king, if the length of the ray is 1 (it's right next to the square)
+            // - a pawn, if the length of the ray is 1 and the direction of the ray
+            //   is the opposite of the pawn's attacking direction
+            let vertical_dir_pawn_attack = match attacker_color {
+                Color::White => -1,
+                Color::Black =>  1,
+            };
+
+            let typ = piece.piece_type();
+            if typ == PieceType::Queen || typ == PieceType::Bishop ||
+                 (moves.len() == 1 && (typ == PieceType::King || (typ == PieceType::Pawn && dir.1 == vertical_dir_pawn_attack))) {
+                    return true;
+            }
+        }
+
+        // Then, horizontal and vertical
+        for dir in [UP, DOWN, LEFT, RIGHT].iter() {
+            let (moves, piece_opt) = self.trace_ray(board, *dir, !attacker_color);
+            let piece = match piece_opt {
+                // The piece must be of the attacking color
+                Some(p) if p.color() == attacker_color => p,
+                _ => continue,
+            };
+
+            // In this case, the piece must be either a queen, a rook
+            // or a king at distance 1
+            let typ = piece.piece_type();
+            if typ == PieceType::Queen || typ == PieceType::Rook || (moves.len() == 1 && typ == PieceType::King) {
+                return true;
+            }
+        }
+
+        false
     }
 
     pub fn add_delta(&self, delta: &Coord) -> Position {

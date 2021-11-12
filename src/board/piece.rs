@@ -89,14 +89,14 @@ impl Piece {
 
     fn get_moves_bishop(&self, pos: &Position, board: &Board) -> Vec<Move> {
         [UP_LEFT, UP_RIGHT, DOWN_LEFT, DOWN_RIGHT].iter()
-            .flat_map(|dir| pos.trace_ray(board, *dir, self.color))
+            .flat_map(|dir| pos.trace_ray(board, *dir, self.color).0)
             .map(|future_pos| Move::NormalMove { from: *pos, to: future_pos })
             .collect()
     }
 
     fn get_moves_rook(&self, pos: &Position, board: &Board) -> Vec<Move> {
         [UP, DOWN, LEFT, RIGHT].iter()
-            .flat_map(|dir| pos.trace_ray(board, *dir, self.color))
+            .flat_map(|dir| pos.trace_ray(board, *dir, self.color).0)
             .map(|future_pos| Move::NormalMove { from: *pos, to: future_pos })
             .collect()
     }
