@@ -1,4 +1,4 @@
-use std::result::Result;
+use std::{ops::Mul, result::Result};
 use crate::chess::{Piece, Board, PieceType, Color};
 
 type CoordElem = i8;
@@ -196,5 +196,13 @@ impl Position {
 
     pub fn is_valid(&self) -> bool {
         self.rank >= 0 && self.rank < 8 && self.file >= 0 && self.file < 8
+    }
+}
+
+impl Mul<CoordElem> for Position {
+    type Output = Position;
+
+    fn mul(self, rhs: CoordElem) -> Position {
+        Position::new_0based(self.file * rhs, self.rank * rhs)
     }
 }

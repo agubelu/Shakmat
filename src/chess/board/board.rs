@@ -62,6 +62,10 @@ impl Board {
     pub fn get_en_passant_target(&self) -> &Option<Position> {
         &self.en_passant_target
     }
+
+    pub fn castling_info(&self) -> &CastlingRights {
+        &self.castling_rights
+    }
 }
 
 impl Display for Board {

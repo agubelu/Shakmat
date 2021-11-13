@@ -36,7 +36,11 @@ impl Piece {
     pub fn get_legal_moves(&self, pos: &Position, board: &Board) -> Vec<Move> {
         self.get_pseudolegal_moves(pos, board)
             .into_iter()
-            .filter(|&m| !board.make_move(m, false).is_check(self.color))
+            .filter(|&m| {
+                // Castling legality is checked in move generation
+                matches!(m, Move::LongCastle) || matches!(m, Move::ShortCastle) ||
+                !board.make_move(m, false).is_check(self.color)
+            })
             .collect()
     }
 
@@ -63,15 +67,61 @@ impl Piece {
     /// it? Im not sure how that would perform in terms of efficiency, because
     /// then the board would have to contain Box<dyn Piece> instead of Piece
     fn get_moves_king(&self, pos: &Position, board: &Board) -> Vec<Move> {
-        // TODO: castling
-        pos.king_moves()
+        let mut moves: Vec<Move> = pos.king_moves()
             .iter()
             .filter(|&future_pos| {
                 let future_square = board.get_pos(future_pos);
                 future_square.is_none() || future_square.unwrap().color != self.color
             })
             .map(|future_pos| Move::NormalMove { from: *pos, to: *future_pos })
-            .collect()
+            .collect();
+
+        // To check castling, we need to know the color of the king
+        // Since the king will be in the position "pos" in the board,
+        // we can unwrap it safely to get its color
+        let color = board.get_pos(pos).unwrap().color;
+
+        // Check for short castling
+        // If the following is true, then the king and the kingside rook have
+        // not moved
+        if board.castling_info().can_castle_kingside(color) {
+            // If the king has the right to castle, it is in its original position
+            // So we have to check that position and 2 to the right
+            // They must be empty and not under attack by the opposite color
+            // (except the king's initial square, which cannot be empty for obvious reasons)
+            let can_castle_short = [(0, 0), (1, 0), (2, 0)].iter()
+                .all(|diff| {
+                    let pos_check = pos.add_delta(diff);
+                    let empty = diff.0 == 0 || board.get_pos(&pos_check).is_none();
+                    let under_attack = pos_check.is_attacked_by(board, !color);
+                    empty && !under_attack
+                });
+            if can_castle_short {
+                moves.push(Move::ShortCastle);
+            }
+        }
+
+        // Check for long castling, same assumptions but for the
+        // queenside this time
+        if board.castling_info().can_castle_queenside(color) {
+            // Likewise, here we can assume the king is in starting position
+            // However, we must check that the two positions to the left are
+            // empty and not under attack, and that the 3rd to the left is empty
+            // (it can be attacked since the king wont pass through there)
+            let can_castle_long = [(0, 0), (-1, 0), (-2, 0), (-3, 0)].iter()
+                .all(|diff| {
+                    let pos_check = pos.add_delta(diff);
+                    let empty = diff.0 == 0 || board.get_pos(&pos_check).is_none();
+                    let under_attack = diff.0 > -3 && pos_check.is_attacked_by(board, !color);
+                    empty && !under_attack
+                });
+
+            if can_castle_long {
+                moves.push(Move::LongCastle);
+            }
+        }
+
+        moves
     }
 
     fn get_moves_knight(&self, pos: &Position, board: &Board) -> Vec<Move> {
