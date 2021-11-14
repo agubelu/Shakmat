@@ -90,9 +90,17 @@ impl Board {
         // and replacing the piece in the destination square if needed
         // This function also takes care of capturing en passant,
         // but it doesn't reset or set the e.p. square
-        new_board.move_piece(movement.from(), movement.to());
+        new_board.move_piece(&movement);
+        new_board.update_en_passant(&movement);
 
-        Ok(new_board) // TODO
+        Ok(new_board)
+
+        /*
+            TODO:
+                - castling
+                - update castling rights
+                - update capture/pawn move counter
+        */
     }
 
     pub fn get_current_turn_moves(&self) -> Vec<Move> {
@@ -137,10 +145,13 @@ impl Board {
     ///////////////////////////////////////////////////////////////////////////
     /// Aux functions to help with moves
     
-    fn move_piece(&mut self, from: &Position, to: &Position) {
+    fn move_piece(&mut self, movement: &Move) {
         // This function is called with legal moves, so we can assume
         // that the piece exists in the "from" position and can move to the
-        // target position
+        // target position. It only does single moves, not castling
+
+        let from = movement.from();
+        let to = movement.to();
 
         // If there is a piece in the destination square, remove it
         self.remove_piece(to);
@@ -168,7 +179,37 @@ impl Board {
         self.squares[from.rank_u()][from.file_u()] = None;
 
         // Update the piece's position in place
-        self.get_pieces_mut(from_data.color)[from_data.index].as_mut().unwrap().update_position(*to);
+        let piece = self.get_pieces_mut(from_data.color)[from_data.index].as_mut().unwrap();
+        piece.update_position(*to);
+        // If this is a promotion, change the piece's type
+        if let Move::PawnPromotion{ promote_to: dest_type , ..} = movement {
+            piece.update_type(*dest_type);
+        }
+    }
+
+    fn update_en_passant(&mut self, movement: &Move) {
+        // Set or disable the e.p. target square
+        // Note that this is done after the piece has already been moved,
+        // so it is currently in the "to" square
+        let ep = match movement {
+            Move::NormalMove { from, to } => {
+                let piece = self.get_pos(to).unwrap(); // The piece is guaranteed to be there
+                if piece.piece_type() == PieceType::Pawn && (from.rank - to.rank).abs() == 2 {
+                    // It is a pawn that has moved 2 squares, therefore, 
+                    // it can be capture en passant. Determine the target square
+                    let diff = match piece.color() {
+                        Color::White => DOWN,
+                        Color::Black => UP,
+                    };
+                    Some(to.add_delta(&diff))
+                } else {
+                    None
+                }
+            },
+            _ => None,
+        };
+
+        self.en_passant_target = ep;
     }
 
     fn remove_piece(&mut self, pos: &Position) {
