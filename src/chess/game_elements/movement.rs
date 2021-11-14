@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter, Result};
 
 use super::{Position, PieceType};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Move {
     NormalMove { from: Position, to: Position },
     ShortCastle,

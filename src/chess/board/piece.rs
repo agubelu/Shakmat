@@ -3,7 +3,7 @@ use std::fmt::{Display, Result};
 use crate::chess::{Board, Color, PieceType, Position, Move, Color::*, PieceType::*};
 use crate::chess::position::{UP, DOWN, LEFT, RIGHT, UP_LEFT, UP_RIGHT, DOWN_LEFT, DOWN_RIGHT};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Piece {
     color: Color,
     piece_type: PieceType,
@@ -44,7 +44,7 @@ impl Piece {
             .filter(|&m| {
                 // Castling legality is checked in move generation
                 matches!(m, Move::LongCastle) || matches!(m, Move::ShortCastle) ||
-                !board.make_move(m, false).is_check(self.color)
+                !board.make_move(m, false).unwrap().is_in_check(self.color)
             })
             .collect()
     }
@@ -159,7 +159,6 @@ impl Piece {
     }
 
     fn get_moves_queen(&self, board: &Board) -> Vec<Move> {
-        let pos = self.position();
         let mut moves = self.get_moves_bishop(board);
         moves.extend(self.get_moves_rook(board));
         moves

@@ -6,12 +6,12 @@ use std::io::{stdin,stdout,Write};
 
 fn main() {
     
-    let board = Board::from_fen("8/8/8/8/8/8/8/R3K2R w KQk - 0 1").unwrap();
+    let board = Board::default();
     println!("{}", board);
 
-    let pos = Position::from_notation("e1").unwrap();
-    board.get_pos(&pos).unwrap().get_legal_moves(&board)
-        .iter().for_each(|m| println!("{}", m));
+    let moves = board.get_current_turn_moves();
+    println!("{} moves:", moves.len());
+    moves.iter().for_each(|m| println!("{}", m));
 
-
+    println!("Size of Board: {} bytes", std::mem::size_of::<Board>())
 }

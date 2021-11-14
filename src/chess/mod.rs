@@ -6,4 +6,4 @@ pub use board::{Board, Piece};
 pub use game_elements::{Color, Move, PieceType, CastlingRights, Position};
 
 use game_elements::position;
-use board::BoardSquares;
+use board::PieceArray;
