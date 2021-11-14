@@ -27,6 +27,10 @@ impl Piece {
         &self.position
     }
 
+    pub fn update_position(&mut self, pos: Position) {
+        self.position = pos;
+    }
+
     pub fn get_pseudolegal_moves(&self, board: &Board) -> Vec<Move> {
         match self.piece_type {
             King => self.get_moves_king(board),

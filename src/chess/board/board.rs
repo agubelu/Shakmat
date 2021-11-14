@@ -1,7 +1,8 @@
 use std::fmt::Display;
 use std::result::Result;
 
-use crate::chess::{CastlingRights, Color, Move, Position, Piece};
+use crate::chess::game_elements::position::{DOWN, UP};
+use crate::chess::{CastlingRights, Color, Move, Piece, PieceType, Position};
 use crate::chess::fen::{read_fen, DEFAULT_FEN};
 
 pub type PieceArray = [Option<Piece>; 16];
@@ -65,7 +66,6 @@ impl Board {
     }
 
     pub fn make_move(&self, movement: Move, check_legality: bool) -> Result<Board, String> {
-        // todo
         if check_legality {
             // This move was received from the user, check that it is indeed legal
             // We do this by making sure it exists in the list of allowed moves
@@ -77,7 +77,22 @@ impl Board {
             }
         }
 
-        Ok(*self) // TODO
+        let mut new_board = *self;
+
+        // Update the current color to play and the number of total turns,
+        // if black just moved
+        new_board.turn = !self.turn;
+        if new_board.turn == Color::White {
+            new_board.full_turns += 1;
+        }
+
+        // Perform the movement, updating everything in the new board
+        // and replacing the piece in the destination square if needed
+        // This function also takes care of capturing en passant,
+        // but it doesn't reset or set the e.p. square
+        new_board.move_piece(movement.from(), movement.to());
+
+        Ok(new_board) // TODO
     }
 
     pub fn get_current_turn_moves(&self) -> Vec<Move> {
@@ -117,6 +132,58 @@ impl Board {
         // The king is guaranteed to exist and to be in the
         // first position of the piece array, hence, we can unwrap it safely
         *self.get_pieces(color)[0].unwrap().position()
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+    /// Aux functions to help with moves
+    
+    fn move_piece(&mut self, from: &Position, to: &Position) {
+        // This function is called with legal moves, so we can assume
+        // that the piece exists in the "from" position and can move to the
+        // target position
+
+        // If there is a piece in the destination square, remove it
+        self.remove_piece(to);
+
+        // Update the position of the piece that is moving
+        let from_data = self.squares[from.rank_u()][from.file_u()].unwrap();
+        let piece_info = self.get_pieces(from_data.color)[from_data.index].as_ref().unwrap();
+
+        // If this is a pawn capturing en passant, the piece to remove is
+        // actually behind it
+        if let Some(ep_target) = self.get_en_passant_target() {
+            if *ep_target == *to && piece_info.piece_type() == PieceType::Pawn {
+                let diff = match piece_info.color() {
+                    Color::White => DOWN,
+                    Color::Black => UP,
+                };
+
+                let pos_to_delete = to.add_delta(&diff);
+                self.remove_piece(&pos_to_delete);
+            }
+        }
+
+        // Move the piece
+        self.squares[to.rank_u()][to.file_u()] = Some(from_data);
+        self.squares[from.rank_u()][from.file_u()] = None;
+
+        // Update the piece's position in place
+        self.get_pieces_mut(from_data.color)[from_data.index].as_mut().unwrap().update_position(*to);
+    }
+
+    fn remove_piece(&mut self, pos: &Position) {
+        let pos_data = self.squares[pos.rank_u()][pos.file_u()];
+        if let Some(tile_info) = pos_data {
+            self.get_pieces_mut(tile_info.color)[tile_info.index] = None;
+            self.squares[pos.rank_u()][pos.file_u()] = None;
+        }
+    }
+
+    fn get_pieces_mut(&mut self, color: Color) -> &mut PieceArray {
+        match color {
+            Color::White => &mut self.white_pieces,
+            Color::Black => &mut self.black_pieces
+        }
     }
 }
 
