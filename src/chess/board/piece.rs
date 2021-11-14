@@ -5,13 +5,14 @@ use crate::chess::position::{UP, DOWN, LEFT, RIGHT, UP_LEFT, UP_RIGHT, DOWN_LEFT
 
 #[derive(Debug, Clone, Copy)]
 pub struct Piece {
-    pub color: Color,
-    pub piece_type: PieceType,
+    color: Color,
+    piece_type: PieceType,
+    position: Position,
 }
 
 impl Piece {
-    pub fn new(color: Color, piece_type: PieceType) -> Self {
-        Piece { color, piece_type }
+    pub fn new(color: Color, piece_type: PieceType, position: Position) -> Self {
+        Piece { color, piece_type, position }
     }
 
     pub fn color(&self) -> Color {
@@ -22,19 +23,23 @@ impl Piece {
         self.piece_type
     }
 
-    pub fn get_pseudolegal_moves(&self, pos: &Position, board: &Board) -> Vec<Move> {
+    pub fn position(&self) -> &Position {
+        &self.position
+    }
+
+    pub fn get_pseudolegal_moves(&self, board: &Board) -> Vec<Move> {
         match self.piece_type {
-            King => self.get_moves_king(pos, board),
-            Knight => self.get_moves_knight(pos, board),
-            Pawn => self.get_moves_pawn(pos, board),
-            Bishop => self.get_moves_bishop(pos, board),
-            Rook => self.get_moves_rook(pos, board),
-            Queen => self.get_moves_queen(pos, board),
+            King => self.get_moves_king(board),
+            Knight => self.get_moves_knight(board),
+            Pawn => self.get_moves_pawn(board),
+            Bishop => self.get_moves_bishop(board),
+            Rook => self.get_moves_rook(board),
+            Queen => self.get_moves_queen(board),
         }
     }
 
-    pub fn get_legal_moves(&self, pos: &Position, board: &Board) -> Vec<Move> {
-        self.get_pseudolegal_moves(pos, board)
+    pub fn get_legal_moves(&self, board: &Board) -> Vec<Move> {
+        self.get_pseudolegal_moves(board)
             .into_iter()
             .filter(|&m| {
                 // Castling legality is checked in move generation
@@ -66,7 +71,8 @@ impl Piece {
     /// Maybe transform Piece into a trait and have different pieces implement
     /// it? Im not sure how that would perform in terms of efficiency, because
     /// then the board would have to contain Box<dyn Piece> instead of Piece
-    fn get_moves_king(&self, pos: &Position, board: &Board) -> Vec<Move> {
+    fn get_moves_king(&self, board: &Board) -> Vec<Move> {
+        let pos = self.position();
         let mut moves: Vec<Move> = pos.king_moves()
             .iter()
             .filter(|&future_pos| {
@@ -124,7 +130,8 @@ impl Piece {
         moves
     }
 
-    fn get_moves_knight(&self, pos: &Position, board: &Board) -> Vec<Move> {
+    fn get_moves_knight(&self, board: &Board) -> Vec<Move> {
+        let pos = self.position();
         pos.knight_jumps()
             .iter()
             .filter(|&future_pos| {
@@ -135,27 +142,31 @@ impl Piece {
             .collect()
     }
 
-    fn get_moves_bishop(&self, pos: &Position, board: &Board) -> Vec<Move> {
+    fn get_moves_bishop(&self, board: &Board) -> Vec<Move> {
+        let pos = self.position();
         [UP_LEFT, UP_RIGHT, DOWN_LEFT, DOWN_RIGHT].iter()
             .flat_map(|dir| pos.trace_ray(board, *dir, self.color).0)
             .map(|future_pos| Move::NormalMove { from: *pos, to: future_pos })
             .collect()
     }
 
-    fn get_moves_rook(&self, pos: &Position, board: &Board) -> Vec<Move> {
+    fn get_moves_rook(&self, board: &Board) -> Vec<Move> {
+        let pos = self.position();
         [UP, DOWN, LEFT, RIGHT].iter()
             .flat_map(|dir| pos.trace_ray(board, *dir, self.color).0)
             .map(|future_pos| Move::NormalMove { from: *pos, to: future_pos })
             .collect()
     }
 
-    fn get_moves_queen(&self, pos: &Position, board: &Board) -> Vec<Move> {
-        let mut moves = self.get_moves_bishop(pos, board);
-        moves.extend(self.get_moves_rook(pos, board));
+    fn get_moves_queen(&self, board: &Board) -> Vec<Move> {
+        let pos = self.position();
+        let mut moves = self.get_moves_bishop(board);
+        moves.extend(self.get_moves_rook(board));
         moves
     }
 
-    fn get_moves_pawn(&self, pos: &Position, board: &Board) -> Vec<Move> {
+    fn get_moves_pawn(&self, board: &Board) -> Vec<Move> {
+        let pos = self.position();
         let fwd_direction = if self.color == White { UP } else { DOWN };
         let starting_rank = if self.color == White { 1 } else { 6 };
         let promotion_rank = if self.color == White { 7 } else { 0 };

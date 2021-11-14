@@ -6,6 +6,6 @@ pub mod castling;
 
 pub use color::Color;
 pub use movement::Move;
-pub use position::Position;
+pub use position::{Position, CoordElem};
 pub use piece_type::PieceType;
 pub use castling::CastlingRights;

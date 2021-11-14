@@ -1,7 +1,7 @@
 use std::{ops::Mul, result::Result};
 use crate::chess::{Piece, Board, PieceType, Color};
 
-type CoordElem = i8;
+pub type CoordElem = i8;
 type Coord = (CoordElem, CoordElem);
 
 pub const UP: Coord = (0, 1);
@@ -132,7 +132,7 @@ impl Position {
     pub fn is_attacked_by(&self, board: &Board, attacker_color: Color) -> bool {
         // Check for horsies
         for pos in self.knight_jumps() {
-            if matches!(board.get_pos(&pos), Some(Piece{color, piece_type: PieceType::Knight}) if *color == attacker_color) {
+            if matches!(board.get_pos(&pos), Some(p) if p.color() == attacker_color && p.piece_type() == PieceType::Knight) {
                 return true;
             }
         }

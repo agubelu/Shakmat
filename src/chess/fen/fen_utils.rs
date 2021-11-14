@@ -2,6 +2,7 @@ use std::result::Result;
 
 use crate::chess::{Color, CastlingRights, Position, BoardSquares, Piece};
 use crate::chess::{Color::*, PieceType::*};
+use crate::chess::position::CoordElem;
 
 pub const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -71,19 +72,20 @@ fn load_board(board_info: &str, fen_info: &mut FENInfo) -> Result<(), String> {
             if is_digit {
                 file += ch.to_digit(10).unwrap() as usize;
             } else {
+                let pos = Position::new_0based(file as CoordElem, rank as CoordElem);
                 match ch {
-                    'r' => fen_info.board_state[rank][file] = Some(Piece::new(Black, Rook)),
-                    'n' => fen_info.board_state[rank][file] = Some(Piece::new(Black, Knight)),
-                    'b' => fen_info.board_state[rank][file] = Some(Piece::new(Black, Bishop)),
-                    'q' => fen_info.board_state[rank][file] = Some(Piece::new(Black, Queen)),
-                    'k' => fen_info.board_state[rank][file] = Some(Piece::new(Black, King)),
-                    'p' => fen_info.board_state[rank][file] = Some(Piece::new(Black, Pawn)),
-                    'R' => fen_info.board_state[rank][file] = Some(Piece::new(White, Rook)),
-                    'N' => fen_info.board_state[rank][file] = Some(Piece::new(White, Knight)),
-                    'B' => fen_info.board_state[rank][file] = Some(Piece::new(White, Bishop)),
-                    'Q' => fen_info.board_state[rank][file] = Some(Piece::new(White, Queen)),
-                    'K' => fen_info.board_state[rank][file] = Some(Piece::new(White, King)),
-                    'P' => fen_info.board_state[rank][file] = Some(Piece::new(White, Pawn)),
+                    'r' => fen_info.board_state[rank][file] = Some(Piece::new(Black, Rook, pos)),
+                    'n' => fen_info.board_state[rank][file] = Some(Piece::new(Black, Knight, pos)),
+                    'b' => fen_info.board_state[rank][file] = Some(Piece::new(Black, Bishop, pos)),
+                    'q' => fen_info.board_state[rank][file] = Some(Piece::new(Black, Queen, pos)),
+                    'k' => fen_info.board_state[rank][file] = Some(Piece::new(Black, King, pos)),
+                    'p' => fen_info.board_state[rank][file] = Some(Piece::new(Black, Pawn, pos)),
+                    'R' => fen_info.board_state[rank][file] = Some(Piece::new(White, Rook, pos)),
+                    'N' => fen_info.board_state[rank][file] = Some(Piece::new(White, Knight, pos)),
+                    'B' => fen_info.board_state[rank][file] = Some(Piece::new(White, Bishop, pos)),
+                    'Q' => fen_info.board_state[rank][file] = Some(Piece::new(White, Queen, pos)),
+                    'K' => fen_info.board_state[rank][file] = Some(Piece::new(White, King, pos)),
+                    'P' => fen_info.board_state[rank][file] = Some(Piece::new(White, Pawn, pos)),
                      _  if is_digit => {}, // Already handled
                      _  => return Err(format!("Invalid character '{}' while reading the board state from FEN", ch))
                 }
