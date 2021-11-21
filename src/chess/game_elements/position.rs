@@ -206,3 +206,9 @@ impl Mul<CoordElem> for Position {
         Position::new_0based(self.file * rhs, self.rank * rhs)
     }
 }
+
+impl PartialEq<Coord> for &Position {
+    fn eq(&self, other: &Coord) -> bool {
+        self.file == other.0 && self.rank == other.1
+    }
+}

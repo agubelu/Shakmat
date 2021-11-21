@@ -47,12 +47,26 @@ impl CastlingRights {
         }
     }
 
+    pub fn disable_all(&mut self, color: Color) {
+        match color {
+            Color::White => {
+                self.white_kingside = false;
+                self.white_queenside = false;
+            },
+            Color::Black => {
+                self.black_kingside = false;
+                self.black_queenside = false;
+            }
+        }
+    }
+
     pub fn can_castle_kingside(&self, color: Color) -> bool {
         match color {
             Color::White => self.white_kingside,
             Color::Black => self.black_kingside,
         }
     }
+
 
     pub fn can_castle_queenside(&self, color: Color) -> bool {
         match color {

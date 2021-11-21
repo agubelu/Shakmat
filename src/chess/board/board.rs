@@ -77,7 +77,20 @@ impl Board {
             }
         }
 
+        // Copy the current board and make the changes on it
         let mut new_board = *self;
+
+        // Perform the movement in question
+        if matches!(movement, Move::LongCastle | Move::ShortCastle) {
+            new_board.castle(&movement);
+            // Castling calls move_piece twice, so the half-turn counter for
+            // the 50 move rule is updated twice, that's why we must substract 1
+            new_board.half_turns_til_50move_draw -= 1;
+        } else {
+            new_board.move_piece(&movement);
+        }
+
+        new_board.update_en_passant(&movement);
 
         // Update the current color to play and the number of total turns,
         // if black just moved
@@ -86,21 +99,7 @@ impl Board {
             new_board.full_turns += 1;
         }
 
-        // Perform the movement, updating everything in the new board
-        // and replacing the piece in the destination square if needed
-        // This function also takes care of capturing en passant,
-        // but it doesn't reset or set the e.p. square
-        new_board.move_piece(&movement);
-        new_board.update_en_passant(&movement);
-
         Ok(new_board)
-
-        /*
-            TODO:
-                - castling
-                - update castling rights
-                - update capture/pawn move counter
-        */
     }
 
     pub fn get_current_turn_moves(&self) -> Vec<Move> {
@@ -116,7 +115,7 @@ impl Board {
     }
 
     pub fn get_pos(&self, pos: &Position) -> Option<&Piece> {
-        self.squares[pos.rank_u()][pos.file_u()].as_ref()
+        self.get_piece_array_info(pos).as_ref()
             .map(|arr_info| self.get_pieces(arr_info.color)[arr_info.index].as_ref().unwrap())
 
     }
@@ -129,19 +128,6 @@ impl Board {
         &self.castling_rights
     }
 
-    pub fn get_pieces(&self, color: Color) -> &PieceArray {
-        match color {
-            Color::White => &self.white_pieces,
-            Color::Black => &self.black_pieces
-        }
-    }
-
-    pub fn get_king_position(&self, color: Color) -> Position {
-        // The king is guaranteed to exist and to be in the
-        // first position of the piece array, hence, we can unwrap it safely
-        *self.get_pieces(color)[0].unwrap().position()
-    }
-
     pub fn turn_number(&self) -> u16 {
         self.full_turns
     }
@@ -152,27 +138,29 @@ impl Board {
 
     ///////////////////////////////////////////////////////////////////////////
     /// Aux functions to help with moves
-    
     fn move_piece(&mut self, movement: &Move) {
         // This function is called with legal moves, so we can assume
         // that the piece exists in the "from" position and can move to the
         // target position. It only does single moves, not castling
-
         let from = movement.from();
         let to = movement.to();
 
         // If there is a piece in the destination square, remove it
-        self.remove_piece(to);
+        let is_capture = self.remove_piece(to);
 
         // Update the position of the piece that is moving
-        let from_data = self.squares[from.rank_u()][from.file_u()].unwrap();
+        let from_data = self.get_piece_array_info(from).unwrap();
         let piece_info = self.get_pieces(from_data.color)[from_data.index].as_ref().unwrap();
+
+        // Store this to avoid holding a reference
+        let piece_type = piece_info.piece_type();
+        let piece_color = piece_info.color();
 
         // If this is a pawn capturing en passant, the piece to remove is
         // actually behind it
         if let Some(ep_target) = self.get_en_passant_target() {
-            if *ep_target == *to && piece_info.piece_type() == PieceType::Pawn {
-                let diff = match piece_info.color() {
+            if *ep_target == *to && piece_type == PieceType::Pawn {
+                let diff = match piece_color {
                     Color::White => DOWN,
                     Color::Black => UP,
                 };
@@ -193,6 +181,16 @@ impl Board {
         if let Move::PawnPromotion{ promote_to: dest_type , ..} = movement {
             piece.update_type(*dest_type);
         }
+
+        // Update the counter towards the 50 move rule
+        if is_capture || piece_type == PieceType::Pawn {
+            self.half_turns_til_50move_draw = 0;
+        } else {
+            self.half_turns_til_50move_draw += 1;
+        }
+
+        // Update castling rights
+        self.update_castling_rights(piece_color, piece_type, from, to);
     }
 
     fn update_en_passant(&mut self, movement: &Move) {
@@ -220,12 +218,78 @@ impl Board {
         self.en_passant_target = ep;
     }
 
-    fn remove_piece(&mut self, pos: &Position) {
+    fn castle(&mut self, movement: &Move) {
+        // Note that "self.turn" still hasn't updated at this point, hence
+        // we can use it to get which color is castling
+        let rank = if self.turn == Color::White {0} else {7};
+        let file_king_from = 4;
+        let file_king_to = if matches!(movement, Move::ShortCastle) {6} else {2};
+        let file_rook_from = if matches!(movement, Move::ShortCastle) {7} else {0};
+        let file_rook_to = if matches!(movement, Move::ShortCastle) {5} else {3};
+
+        let pos_king_from = Position::new_0based(file_king_from, rank);
+        let pos_king_to = Position::new_0based(file_king_to, rank);
+
+        let pos_rook_from = Position::new_0based(file_rook_from, rank);
+        let pos_rook_to = Position::new_0based(file_rook_to, rank);
+
+        self.move_piece(&Move::NormalMove{from: pos_king_from, to: pos_king_to});
+        self.move_piece(&Move::NormalMove{from: pos_rook_from, to: pos_rook_to});
+    }
+
+    fn update_castling_rights(&mut self, color: Color, piece_type: PieceType, from: &Position, to: &Position) {
+        // Check if we are capturing one of the opponent's rooks and update
+        // their castling rights
+        let white_rooks = ((0, 0), (7, 0));
+        let black_rooks = ((0, 7), (7, 7));
+
+        let op_color = !color;
+
+        // Initial positions of the rooks of the color moving (0) and
+        // the opposite color (1)
+        let rook_positions = match color { // Queenside, kingside
+            Color::White => (white_rooks, black_rooks),
+            Color::Black => (black_rooks, white_rooks),
+        };
+
+        if self.castling_rights.can_castle_queenside(op_color) && to == rook_positions.1.0 {
+            self.castling_rights.update_queenside(op_color, false);
+        } else if self.castling_rights.can_castle_kingside(op_color) && to == rook_positions.1.1 {
+            self.castling_rights.update_kingside(op_color, false);
+        }
+
+        // Check if we are moving our own king or one of our rooks
+        if piece_type == PieceType::King {
+            self.castling_rights.disable_all(color);
+        } else if self.castling_rights.can_castle_queenside(color) && from == rook_positions.0.0 {
+            self.castling_rights.update_queenside(color, false);
+        } else if self.castling_rights.can_castle_kingside(color) && from == rook_positions.0.1 {
+            self.castling_rights.update_kingside(color, false);
+        }
+    }
+
+    fn get_pieces(&self, color: Color) -> &PieceArray {
+        match color {
+            Color::White => &self.white_pieces,
+            Color::Black => &self.black_pieces
+        }
+    }
+
+    fn get_king_position(&self, color: Color) -> Position {
+        // The king is guaranteed to exist and to be in the
+        // first position of the piece array, hence, we can unwrap it safely
+        *self.get_pieces(color)[0].unwrap().position()
+    }
+
+    fn remove_piece(&mut self, pos: &Position) -> bool {
         let pos_data = self.squares[pos.rank_u()][pos.file_u()];
         if let Some(tile_info) = pos_data {
             self.get_pieces_mut(tile_info.color)[tile_info.index] = None;
             self.squares[pos.rank_u()][pos.file_u()] = None;
+            return true;
         }
+
+        false
     }
 
     fn get_pieces_mut(&mut self, color: Color) -> &mut PieceArray {
@@ -234,12 +298,15 @@ impl Board {
             Color::Black => &mut self.black_pieces
         }
     }
+
+    fn get_piece_array_info(&self, pos: &Position) -> &Option<PieceArrayPos> {
+        &self.squares[pos.rank_u()][pos.file_u()]
+    }
 }
 
 impl Default for Board {
     fn default() -> Self {
-        // The default FEN is hard-coded and correct,
-        // so we can unwrap it safely
+        // The default FEN is hard-coded and correct, so we can unwrap it safely
         Board::from_fen(DEFAULT_FEN).unwrap()
     }
 }
