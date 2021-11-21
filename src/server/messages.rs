@@ -29,16 +29,23 @@ impl ApiResponse {
         Self { status: Status::BadRequest, payload: json!({"msg": msg}) }
     }
 
-    pub fn game_created(key: String, board: &Board) -> Self {
-        let turn_info = TurnInfo::from_board(board);
+    pub fn not_found(msg: String) -> Self {
+        Self { status: Status::NotFound, payload: json!({"msg": msg}) }
+    }
+
+    pub fn game_created(key: String, turn_info: TurnInfo) -> Self {
         Self { status: Status::Created, payload: json!({"key": key, "turn_info": turn_info}) }
+    }
+
+    pub fn turn_info(turn_info: TurnInfo) -> Self {
+        Self { status: Status::Ok, payload: json!({"turn_info": turn_info}) }
     }
 }
 
 // Info for the current turn
 #[derive(Debug, Serialize)]
 #[serde(rename = "turn_info")]
-struct TurnInfo {
+pub struct TurnInfo {
     turn_number: u16,
     color: Color,
     moves: Vec<Move>,
