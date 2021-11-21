@@ -142,6 +142,14 @@ impl Board {
         *self.get_pieces(color)[0].unwrap().position()
     }
 
+    pub fn turn_number(&self) -> u16 {
+        self.full_turns
+    }
+
+    pub fn turn_color(&self) -> Color {
+        self.turn
+    }
+
     ///////////////////////////////////////////////////////////////////////////
     /// Aux functions to help with moves
     

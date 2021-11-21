@@ -1,6 +1,11 @@
-use std::fmt::{Display, Formatter, Result};
+use std::fmt::{Display, Formatter};
+use rocket::serde::{Serialize, Deserialize, Serializer, Deserializer};
 
 use super::{Position, PieceType};
+
+// Avoid clashes between the core Result and the formatter Result
+type StdResult<T, E> = core::result::Result<T, E>;
+type FmtResult = std::fmt::Result;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Move {
@@ -25,11 +30,11 @@ impl Move {
             Move::PawnPromotion { from, .. } => from,
             _ => unimplemented!()
         }
-    }       
+    }
 }
 
 impl Display for Move {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         match self {
             Move::NormalMove { from, to } => write!(f, "{}{}", from.as_notation(), to.as_notation()),
             Move::ShortCastle => write!(f, "O-O"),
@@ -46,4 +51,73 @@ impl Display for Move {
                 }),
         }
     }
+}
+
+// Custom serialization and deserialization, following the previous formatting
+impl Serialize for Move {
+    fn serialize<S: Serializer>(&self, serializer: S) -> StdResult<S::Ok, S::Error> {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'a> Deserialize<'a> for Move {
+    fn deserialize<D: Deserializer<'a>>(deserializer: D) -> StdResult<Self, D::Error> {
+        let s: &str = Deserialize::deserialize(deserializer)?;
+
+        // Is it a castling move?
+        if s == "O-O" || s == "0-0" {
+            return Ok(Self::ShortCastle);
+        } else if s == "O-O-O" || s == "0-0-0" {
+            return Ok(Self::LongCastle);
+        }
+
+        let len = s.len();
+
+        // Is it a normal move or a promotion move?
+        if len == 4  || len == 6 {
+            let from = match Position::from_notation(&s[0..2]) {
+                Ok(pos) => pos,
+                Err(_) => return Err(UnknownMove{s}).map_err(serde::de::Error::custom),
+            };
+
+            let to = match Position::from_notation(&s[2..4]) {
+                Ok(pos) => pos,
+                Err(_) => return Err(UnknownMove{s}).map_err(serde::de::Error::custom),
+            };
+
+            // If it's a normal move, it's all good
+            if len == 4 {
+                return Ok(Move::NormalMove{ from, to });
+            }
+
+            // Otherwise, it's a promotion move and the piece must be one of
+            // the allowed promotion pieces
+            let promote_to = match &s[5..6] {
+                "Q" | "q" => PieceType::Queen, 
+                "R" | "r" => PieceType::Rook, 
+                "B" | "b" => PieceType::Bishop, 
+                "N" | "n" => PieceType::Knight, 
+                 _  => return Err(UnknownMove{s}).map_err(serde::de::Error::custom)
+            };
+
+            return Ok(Move::PawnPromotion { from, to, promote_to });
+        }
+
+        // Otherwise, we don't know what the hell this is
+        Err(UnknownMove{s}).map_err(serde::de::Error::custom)
+    }
+}
+
+// Deserializing error
+#[derive(Debug)]
+struct UnknownMove<'a> {
+    s: &'a str
+}
+
+impl<'a> std::error::Error for UnknownMove<'a> {}
+
+impl<'a> Display for UnknownMove<'a> {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        write!(f, "The move '{}' was not understood or is not valid", self.s)
+    }        
 }
