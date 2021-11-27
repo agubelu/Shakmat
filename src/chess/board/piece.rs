@@ -51,8 +51,7 @@ impl Piece {
             .into_iter()
             .filter(|&m| {
                 // Castling legality is checked in move generation
-                matches!(m, Move::LongCastle) || matches!(m, Move::ShortCastle) ||
-                !board.make_move(m, false).unwrap().is_in_check(self.color)
+                matches!(m, Move::LongCastle | Move::ShortCastle) || !board.make_move(m, false).unwrap().is_in_check(self.color)
             })
             .collect()
     }

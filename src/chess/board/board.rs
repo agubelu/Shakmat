@@ -1,8 +1,9 @@
 use std::fmt::Display;
 use std::result::Result;
+use rayon::prelude::*;
 
 use crate::chess::game_elements::position::{DOWN, UP};
-use crate::chess::{CastlingRights, Color, Move, Piece, PieceType, Position};
+use crate::chess::{CastlingRights, Color, Move, Piece, PieceType, Position, BitBoard};
 use crate::chess::fen::{read_fen, DEFAULT_FEN};
 
 pub type PieceArray = [Option<Piece>; 16];
@@ -19,6 +20,32 @@ pub struct Board {
     squares: BoardSquares,
     white_pieces: PieceArray,
     black_pieces: PieceArray,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct BBBoard {
+    castling_rights: CastlingRights,
+    turn: Color,
+    half_turns_til_50move_draw: u16,
+    full_turns: u16,
+    en_passant_target: Option<BitBoard>,
+    white_pieces: Pieces,
+    black_pieces: Pieces,
+    black_bb: Option<BitBoard>,
+    white_bb: Option<BitBoard>,
+    black_attacks: Option<BitBoard>,
+    white_atatcks: Option<BitBoard>,
+
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Pieces {
+    pawns: BitBoard,
+    rooks: BitBoard,
+    knights: BitBoard,
+    bishops: BitBoard, 
+    queens: BitBoard,
+    king: BitBoard,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -134,6 +161,10 @@ impl Board {
 
     pub fn turn_color(&self) -> Color {
         self.turn
+    }
+
+    pub fn perft(&self, depth: u16) -> u64 {
+        self._perft(depth, true)
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -302,6 +333,42 @@ impl Board {
     fn get_piece_array_info(&self, pos: &Position) -> &Option<PieceArrayPos> {
         &self.squares[pos.rank_u()][pos.file_u()]
     }
+
+    fn get_current_turn_pseudolegal_moves(&self) -> Vec<Move> {
+        self.get_pieces(self.turn)
+            .iter()
+            .filter_map(|&p| p)
+            .flat_map(|piece| piece.get_pseudolegal_moves(self).into_iter())
+            .collect()
+    }
+
+    fn _perft(&self, depth: u16, multithread: bool) -> u64 {
+        if depth == 1 {
+            return self.get_current_turn_moves().len() as u64
+        }
+
+        let pseudo_moves = self.get_current_turn_pseudolegal_moves();
+
+        if multithread {
+            pseudo_moves.into_par_iter().filter_map(|mv| {
+                let new_board = self.make_move(mv, false).unwrap();
+                if matches!(mv, Move::LongCastle | Move::ShortCastle) || !new_board.is_in_check(self.turn_color()) {
+                    Some(new_board._perft(depth - 1, false))
+                } else {
+                    None
+                }
+            }).sum()
+        } else {
+            pseudo_moves.into_iter().filter_map(|mv| {
+                let new_board = self.make_move(mv, false).unwrap();
+                if matches!(mv, Move::LongCastle | Move::ShortCastle) || !new_board.is_in_check(self.turn_color()) {
+                    Some(new_board._perft(depth - 1, false))
+                } else {
+                    None
+                }
+            }).sum()
+        }
+    }
 }
 
 impl Default for Board {
@@ -338,5 +405,4 @@ impl Display for Board {
         writeln!(f, "    a   b   c   d   e   f   g   h ")?;
         Ok(())
     }
-
 }

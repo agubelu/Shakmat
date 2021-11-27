@@ -197,6 +197,11 @@ impl Position {
     pub fn is_valid(&self) -> bool {
         self.rank >= 0 && self.rank < 8 && self.file >= 0 && self.file < 8
     }
+
+    pub fn as_u64_pos(&self) -> u64 {
+        let i = (7 - self.file as u64) + 8 * (self.rank as u64);
+        1 << i
+    }
 }
 
 impl Mul<CoordElem> for Position {
