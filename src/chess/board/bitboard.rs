@@ -1,4 +1,6 @@
-use std::{fmt::Display, ops::{BitAnd, BitOr, Not}};
+use std::fmt::Display;
+use std::ops::{BitAnd, BitOr, BitOrAssign, Not};
+use std::cmp::PartialEq;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct BitBoard {
@@ -7,7 +9,7 @@ pub struct BitBoard {
 
 pub struct PieceIndexIter {
     bb: u64,
-    cur_index: usize
+    cur_index: u8
 }
 
 impl BitBoard {
@@ -31,6 +33,14 @@ impl BitBoard {
         self.bb &= !pos;
     }
 
+    pub fn reset(&mut self) {
+        self.bb = 0;
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.bb == 0
+    }
+
     pub fn piece_indices(&self) -> PieceIndexIter {
         PieceIndexIter { bb: self.bb, cur_index: 0 }
     }
@@ -38,20 +48,19 @@ impl BitBoard {
 
 ///////////////////////////////////////////////////////////////////////////////
 impl Iterator for PieceIndexIter {
-    type Item = usize;
+    type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.bb == 0 {
             None
         } else {
-            let i = self.bb.trailing_zeros() as usize + 1;
+            let i = self.bb.trailing_zeros() as u8 + 1;
             self.bb >>= i;
             self.cur_index += i;
             Some(self.cur_index - 1)
         }
     }
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Aux trait implements for BB
@@ -87,6 +96,12 @@ impl BitOr<Self> for BitBoard {
 
     fn bitor(self, other: Self) -> Self::Output {
         Self::new(self.bb | other.bb)
+    }
+}
+
+impl BitOrAssign<Self> for BitBoard {
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.bb |= rhs.bb;
     }
 }
 

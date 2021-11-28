@@ -1,10 +1,22 @@
+use std::default;
 use std::fmt::Display;
 use std::result::Result;
 use rayon::prelude::*;
 
+// TODO tidy up these imports
+
 use crate::chess::game_elements::position::{DOWN, UP};
-use crate::chess::{CastlingRights, Color, Move, Piece, PieceType, Position, BitBoard};
+use crate::chess::{CastlingRights, Color, Move, Piece, PieceType, Position, BitBoard, BBMove};
 use crate::chess::fen::{read_fen, DEFAULT_FEN};
+use crate::chess::Color::*;
+use crate::chess::PieceType::*;
+use super::movegen;
+
+use super::super::position::BBSquare;
+use crate::magic;
+
+const PIECE_TYPES: [PieceType; 6] = [King, Queen, Bishop, Knight, Rook, Pawn];
+const COLORS: [Color; 2] = [Black, White];
 
 pub type PieceArray = [Option<Piece>; 16];
 type BoardSquares = [[Option<PieceArrayPos>; 8]; 8];
@@ -28,24 +40,162 @@ pub struct BBBoard {
     turn: Color,
     half_turns_til_50move_draw: u16,
     full_turns: u16,
-    en_passant_target: Option<BitBoard>,
+    en_passant_target: BitBoard,
     white_pieces: Pieces,
     black_pieces: Pieces,
-    black_bb: Option<BitBoard>,
-    white_bb: Option<BitBoard>,
-    black_attacks: Option<BitBoard>,
-    white_atatcks: Option<BitBoard>,
-
+    all_whites: BitBoard,
+    all_blacks: BitBoard,
+    all_pieces: BitBoard,
+    black_attacks: BitBoard,
+    white_attacks: BitBoard,
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Pieces {
-    pawns: BitBoard,
-    rooks: BitBoard,
-    knights: BitBoard,
-    bishops: BitBoard, 
-    queens: BitBoard,
-    king: BitBoard,
+pub struct Pieces {
+    pub pawns: BitBoard,
+    pub rooks: BitBoard,
+    pub knights: BitBoard,
+    pub bishops: BitBoard, 
+    pub queens: BitBoard,
+    pub king: BitBoard,
+}
+
+impl Pieces {
+    pub fn get_pieces_of_type(&self, piece_type: PieceType) -> BitBoard {
+        // Especially useful when printing the board to the console
+        match piece_type {
+            Pawn => self.pawns,
+            Knight => self.knights,
+            Bishop => self.bishops,
+            Rook => self.rooks,
+            Queen => self.queens,
+            King => self.king,
+        }
+    }
+}
+
+impl Default for Pieces {
+    fn default() -> Self {
+        Self {
+            pawns: BitBoard::default(),
+            rooks: BitBoard::default(),
+            knights: BitBoard::default(),
+            bishops: BitBoard::default(),
+            queens: BitBoard::default(),
+            king: BitBoard::default(),
+        }
+    }
+}
+
+impl BBBoard {
+    pub fn from_fen(fen: &str) -> Result<Self, String> {
+        // TO-DO: Adapt the FEN thingy to bitboards so this is smaller
+        let fen_info = read_fen(fen)?;
+        let mut board = Self {
+            castling_rights: fen_info.castling_rights,
+            turn: fen_info.turn,
+            en_passant_target: BitBoard::default(),
+            half_turns_til_50move_draw: 100 - fen_info.halfmoves_since_capture,
+            full_turns: fen_info.fullmoves_since_start,
+            white_pieces: Pieces::default(),
+            black_pieces: Pieces::default(),
+            all_whites: BitBoard::default(),
+            all_blacks: BitBoard::default(),
+            all_pieces: BitBoard::default(),
+            black_attacks: BitBoard::default(),
+            white_attacks: BitBoard::default(), 
+        };
+
+        for white_piece in fen_info.white_pieces.into_iter().flatten() {
+            let pos = white_piece.position();
+            let bb = BBSquare::from_file_rank(pos.file_u() as u8, pos.rank_u() as u8).unwrap().as_bitboard();
+            match white_piece.piece_type() {
+                King => board.white_pieces.king |= bb,
+                Queen => board.white_pieces.queens |= bb,
+                Rook => board.white_pieces.rooks |= bb,
+                Bishop => board.white_pieces.bishops |= bb,
+                Knight => board.white_pieces.knights |= bb,
+                Pawn => board.white_pieces.pawns |= bb,
+            }
+        }
+
+        for black_piece in fen_info.black_pieces.into_iter().flatten() {
+            let pos = black_piece.position();
+            let bb = BBSquare::from_file_rank(pos.file_u() as u8, pos.rank_u() as u8).unwrap().as_bitboard();
+            match black_piece.piece_type() {
+                King => board.black_pieces.king |= bb,
+                Queen => board.black_pieces.queens |= bb,
+                Rook => board.black_pieces.rooks |= bb,
+                Bishop => board.black_pieces.bishops |= bb,
+                Knight => board.black_pieces.knights |= bb,
+                Pawn => board.black_pieces.pawns |= bb,
+            }
+        }
+
+        board.update_aux_bitboards();
+        board.update_attacks(!board.turn);
+        Ok(board)
+    }
+
+    pub fn pseudolegal_moves(&self, color: Color) -> Vec<BBMove> {
+        movegen::get_pseudolegal_moves(self, color)
+    }
+
+    pub fn is_in_check(&self, color: Color) -> bool {
+        match color {
+            White => !(self.white_pieces.king & self.black_attacks).is_empty(),
+            Black => !(self.black_pieces.king & self.white_attacks).is_empty()
+        }
+    }
+
+    pub fn get_en_passant_target(&self) -> BitBoard {
+        self.en_passant_target
+    }
+
+    pub fn castling_info(&self) -> &CastlingRights {
+        &self.castling_rights
+    }
+
+    pub fn turn_number(&self) -> u16 {
+        self.full_turns
+    }
+
+    pub fn turn_color(&self) -> Color {
+        self.turn
+    }
+
+    pub fn get_pieces(&self, color: Color) -> &Pieces {
+        match color {
+            White => &self.white_pieces,
+            Black => &self.black_pieces
+        }
+    }
+
+    pub fn get_color_bitboard(&self, color: Color) -> BitBoard {
+        match color {
+            White => self.all_whites,
+            Black => self.all_blacks
+        }
+    }
+
+    pub fn get_all_bitboard(&self) -> BitBoard {
+        self.all_pieces
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+    /// Private auxiliary functions
+
+    fn update_aux_bitboards(&mut self) {
+        let blacks = self.black_pieces;
+        let whites = self.white_pieces;
+        self.all_blacks = blacks.pawns | blacks.rooks | blacks.knights | blacks.bishops | blacks.queens | blacks.king;
+        self.all_whites = whites.pawns | whites.rooks | whites.knights | whites.bishops | whites.queens | whites.king;
+        self.all_pieces = self.all_blacks | self.all_whites;
+    }
+
+    fn update_attacks(&mut self, color: Color) {
+        // TODO
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -388,6 +538,58 @@ impl Display for Board {
             let pieces_line = (0..8)
                 .map(|file| Position::new_0based(file, rank))
                 .map(|sqre| match self.get_pos(&sqre) {
+                    None => "   ".to_string(),
+                    Some(piece) => format!(" {} ", piece.as_char().to_string())
+                })
+                .collect::<Vec<String>>()
+                .join("│");
+
+            writeln!(f, "{} │{}│", rank + 1, pieces_line)?;
+
+            if rank != 0 {
+                writeln!(f, "  ├───┼───┼───┼───┼───┼───┼───┼───┤")?;
+            }
+        }
+
+        writeln!(f, "  └───┴───┴───┴───┴───┴───┴───┴───┘")?;
+        writeln!(f, "    a   b   c   d   e   f   g   h ")?;
+        Ok(())
+    }
+}
+
+impl Default for BBBoard {
+    fn default() -> Self {
+        // The default FEN is hard-coded and correct, so we can unwrap the result safely
+        Self::from_fen(DEFAULT_FEN).unwrap()
+    }
+}
+
+impl Display for BBBoard {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // Dump the pieces from the bitboards into an 8x8 array
+        let mut pieces: [[Option<Piece>; 8]; 8] = [[None; 8]; 8];
+
+        for color in COLORS.into_iter() {
+            for piece_type in PIECE_TYPES.into_iter() {
+                let piece_bb = self.get_pieces(color).get_pieces_of_type(piece_type);
+                let piece = Piece::new(color, piece_type, Position::new_0based(0, 0));
+                // The pieces position atribute will be deprecated and it 
+                // doesnt matter here
+                for square in piece_bb.piece_indices() {
+                    let bbsquare = BBSquare::new(square as u8);
+                    pieces[bbsquare.rank() as usize][bbsquare.file() as usize] = Some(piece);
+                }
+            }
+        }
+
+        // Print da thing
+        writeln!(f, "{:?} to play, turn #{}\n", self.turn, self.full_turns)?;
+        writeln!(f, "  ┌───┬───┬───┬───┬───┬───┬───┬───┐")?;
+
+        for rank in (0..8).rev() {
+            let pieces_line = (0..8)
+                .map(|file| match pieces[rank][file] {
                     None => "   ".to_string(),
                     Some(piece) => format!(" {} ", piece.as_char().to_string())
                 })

@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use rocket::serde::{Serialize, Deserialize, Serializer, Deserializer};
 
-use super::{Position, PieceType};
+use super::{Position, PieceType, BBSquare};
 
 // Avoid clashes between the core Result and the formatter Result
 type StdResult<T, E> = core::result::Result<T, E>;
@@ -14,6 +14,54 @@ pub enum Move {
     LongCastle,
     PawnPromotion { from: Position, to: Position, promote_to: PieceType}
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BBMove {
+    Normal { piece: PieceType, from: u8, to: u8, ep: bool},
+    PawnPromotion { from: u8, to: u8, promote_to: PieceType },
+    ShortCastle,
+    LongCastle
+}
+
+impl BBMove {
+    pub fn to(&self) -> u8 {
+        match self {
+            BBMove::Normal { to, .. } => *to,
+            BBMove::PawnPromotion { to, .. } => *to,
+            _ => unimplemented!()
+        }
+    }
+
+    pub fn from(&self) -> u8 {
+        match self {
+            BBMove::Normal { from, .. } => *from,
+            BBMove::PawnPromotion { from, .. } => *from,
+            _ => unimplemented!()
+        }
+    }
+}
+
+impl Display for BBMove {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        match self {
+            BBMove::Normal { from, to, .. } => write!(f, "{}{}", BBSquare::new(*from), BBSquare::new(*to)),
+            BBMove::ShortCastle => write!(f, "O-O"),
+            BBMove::LongCastle => write!(f, "O-O-O"),
+            BBMove::PawnPromotion { from, to, promote_to } => write!(f, "{}{}={}", 
+                BBSquare::new(*from), 
+                BBSquare::new(*to), 
+                match promote_to {
+                    PieceType::Queen => "Q",
+                    PieceType::Rook => "R",
+                    PieceType::Bishop => "B",
+                    PieceType::Knight => "N",
+                    _ => unreachable!()
+                }),
+        }
+    }
+}
+
+
 
 impl Move {
     pub fn to(&self) -> &Position {
