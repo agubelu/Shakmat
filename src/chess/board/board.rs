@@ -2,18 +2,16 @@ use std::fmt::Display;
 use std::result::Result;
 use rayon::prelude::*;
 
-// TODO tidy up these imports
-
-use crate::chess::{CastlingRights, Color, PieceType, BitBoard, BBMove};
+use crate::chess::{CastlingRights, Color, PieceType, BitBoard, Move};
 use crate::chess::fen::{read_fen, DEFAULT_FEN};
 use crate::chess::Color::*;
 use crate::chess::PieceType::*;
 use super::movegen;
 
-use super::super::position::BBSquare;
+use super::super::position::Square;
 
 #[derive(Debug, Clone, Copy)]
-pub struct BBBoard {
+pub struct Board {
     castling_rights: CastlingRights,
     turn: Color,
     half_turns_til_50move_draw: u16,
@@ -84,7 +82,7 @@ impl Default for Pieces {
     }
 }
 
-impl BBBoard {
+impl Board {
     pub fn from_fen(fen: &str) -> Result<Self, String> {
         let fen_info = read_fen(fen)?;
 
@@ -107,7 +105,7 @@ impl BBBoard {
         Ok(board)
     }
 
-    pub fn make_move(&self, movement: BBMove, check_legality: bool) -> Result<Self, String> {
+    pub fn make_move(&self, movement: Move, check_legality: bool) -> Result<Self, String> {
         if check_legality {
             // This move was received from the user, check that it is indeed legal
             // We do this by making sure it exists in the list of allowed moves
@@ -121,7 +119,7 @@ impl BBBoard {
         let mut new_board = *self;
 
         // Perform the movement in question
-        if matches!(movement, BBMove::LongCastle | BBMove::ShortCastle) {
+        if matches!(movement, Move::LongCastle | Move::ShortCastle) {
             new_board.castle(&movement);
             // Castling calls move_piece twice, so the half-turn counter for
             // the 50 move rule is updated twice, that's why we must substract 1
@@ -143,7 +141,7 @@ impl BBBoard {
         Ok(new_board)
     }
 
-    pub fn pseudolegal_moves(&self, color: Color) -> Vec<BBMove> {
+    pub fn pseudolegal_moves(&self, color: Color) -> Vec<Move> {
         movegen::get_pseudolegal_moves(self, color)
     }
 
@@ -191,7 +189,7 @@ impl BBBoard {
     ///////////////////////////////////////////////////////////////////////////
     /// Private auxiliary functions
 
-    fn move_piece(&mut self, movement: &BBMove) {
+    fn move_piece(&mut self, movement: &Move) {
         // This function is called with legal moves, so we can assume
         // that the piece exists in the "from" position and can move to the
         // target position. It only does single moves, not castling.
@@ -221,7 +219,7 @@ impl BBBoard {
 
         // Move the piece, depending on whether this is a pawn promotion or not
         let our_pieces = self.get_pieces_mut(moving_color);
-        if let BBMove::PawnPromotion { promote_to, ..} = movement {
+        if let Move::PawnPromotion { promote_to, ..} = movement {
             *our_pieces.get_pieces_of_type_mut(Pawn) ^= from_bb;
             *our_pieces.get_pieces_of_type_mut(*promote_to) ^= to_bb;
         } else {
@@ -239,11 +237,11 @@ impl BBBoard {
         self.update_castling_rights(movement);
     }
 
-    fn castle(&mut self, movement: &BBMove) {
+    fn castle(&mut self, movement: &Move) {
         // Note that "self.turn" still hasn't updated at this point, hence
         // we can use it to get which color is castling
         let color = self.turn_color();
-        let short = matches!(movement, BBMove::ShortCastle);
+        let short = matches!(movement, Move::ShortCastle);
 
         let row_start = if color == White { 0 } else { 56 };
         
@@ -253,16 +251,16 @@ impl BBBoard {
             (row_start + 3, row_start + 5, row_start + 7, row_start + 4)
         };
 
-        let king_move = BBMove::Normal { from: king_from, to: king_to, ep: false, piece: King};
-        let rook_move = BBMove::Normal { from: rook_from, to: rook_to, ep: false, piece: Rook};
+        let king_move = Move::Normal { from: king_from, to: king_to, ep: false, piece: King};
+        let rook_move = Move::Normal { from: rook_from, to: rook_to, ep: false, piece: Rook};
 
         self.move_piece(&king_move);
         self.move_piece(&rook_move);
     }
 
-    fn update_en_passant(&mut self, movement: &BBMove) {
+    fn update_en_passant(&mut self, movement: &Move) {
         match movement {
-            BBMove::Normal {piece: Pawn, from, to, ep: false } => {
+            Move::Normal {piece: Pawn, from, to, ep: false } => {
                 // This is done *before* the color is updated, hence,
                 // the current turn is the one that played the move
                 // Pawns move in increments (white) or decrements (black) of
@@ -280,7 +278,7 @@ impl BBBoard {
         };
     }
 
-    fn update_castling_rights(&mut self, movement: &BBMove) {
+    fn update_castling_rights(&mut self, movement: &Move) {
         // Check if we are capturing one of the opponent's rooks and update
         // their castling rights
         let white_rooks = (7, 0);
@@ -333,14 +331,14 @@ impl BBBoard {
     }
 }
 
-impl Default for BBBoard {
+impl Default for Board {
     fn default() -> Self {
         // The default FEN is hard-coded and correct, so we can unwrap the result safely
         Self::from_fen(DEFAULT_FEN).unwrap()
     }
 }
 
-impl Display for BBBoard {
+impl Display for Board {
 
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // Dump the pieces from the bitboards into an 8x8 array
@@ -352,7 +350,7 @@ impl Display for BBBoard {
                 // The pieces position atribute will be deprecated and it 
                 // doesnt matter here
                 for square in piece_bb.piece_indices() {
-                    let bbsquare = BBSquare::new(square as u8);
+                    let bbsquare = Square::new(square as u8);
                     pieces[bbsquare.rank() as usize][bbsquare.file() as usize] = Some(piece_type.as_char(color));
                 }
             }

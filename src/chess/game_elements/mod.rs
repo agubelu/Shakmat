@@ -5,7 +5,7 @@ pub mod piece_type;
 pub mod castling;
 
 pub use color::Color;
-pub use movement::BBMove;
-pub use position::BBSquare;
+pub use movement::Move;
+pub use position::Square;
 pub use piece_type::PieceType;
 pub use castling::CastlingRights;

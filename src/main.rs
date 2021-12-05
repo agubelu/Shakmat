@@ -11,12 +11,12 @@ mod chess;
 //use std::{ops::BitAnd, sync::Mutex};
 //use std::time::Instant;
 
-use chess::{BitBoard, BBBoard, BBSquare};
+use chess::{BitBoard, Board};
 
 fn main() {
     
     //let board = BBBoard::default();
-    let board = BBBoard::from_fen("rnbqkbnr/pppppppp/8/8/8/8/P3P2P/R3K2R w KQkq - 0 1").unwrap();
+    let board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/P3P2P/R3K2R w KQkq - 0 1").unwrap();
     
     for mv in board.pseudolegal_moves(chess::Color::White) {
         println!("{}", mv);

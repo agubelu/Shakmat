@@ -5,11 +5,11 @@ use crate::chess::BitBoard;
 type FmtResult = std::fmt::Result;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BBSquare {
+pub struct Square {
     square: u8,
 }
 
-impl BBSquare {
+impl Square {
     pub fn new(square: u8) -> Self {
         assert!(square < 64);
         Self { square }
@@ -76,7 +76,7 @@ impl BBSquare {
     }
 }
 
-impl Display for BBSquare {
+impl Display for Square {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let file = match self.file() {
             0 => "a",

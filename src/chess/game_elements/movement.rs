@@ -1,33 +1,33 @@
 use std::fmt::{Display, Formatter};
 use rocket::serde::{Serialize, Deserialize, Serializer, Deserializer};
 
-use super::{PieceType, BBSquare};
+use super::{PieceType, Square};
 
 // Avoid clashes between the core Result and the formatter Result
 type StdResult<T, E> = core::result::Result<T, E>;
 type FmtResult = std::fmt::Result;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BBMove {
+pub enum Move {
     Normal { piece: PieceType, from: u8, to: u8, ep: bool},
     PawnPromotion { from: u8, to: u8, promote_to: PieceType },
     ShortCastle,
     LongCastle
 }
 
-impl BBMove {
+impl Move {
     pub fn to(&self) -> u8 {
         match self {
-            BBMove::Normal { to, .. } => *to,
-            BBMove::PawnPromotion { to, .. } => *to,
+            Self::Normal { to, .. } => *to,
+            Self::PawnPromotion { to, .. } => *to,
             _ => unimplemented!()
         }
     }
 
     pub fn from(&self) -> u8 {
         match self {
-            BBMove::Normal { from, .. } => *from,
-            BBMove::PawnPromotion { from, .. } => *from,
+            Self::Normal { from, .. } => *from,
+            Self::PawnPromotion { from, .. } => *from,
             _ => unimplemented!()
         }
     }
@@ -41,22 +41,22 @@ impl BBMove {
 
     pub fn piece_type(&self) -> PieceType {
         match self {
-            BBMove::Normal { piece, .. } => *piece,
-            BBMove::PawnPromotion { .. } => PieceType::Pawn,
+            Self::Normal { piece, .. } => *piece,
+            Self::PawnPromotion { .. } => PieceType::Pawn,
             _ => unimplemented!()
         }
     }
 }
 
-impl Display for BBMove {
+impl Display for Move {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         match self {
-            BBMove::Normal { from, to, .. } => write!(f, "{}{}", BBSquare::new(*from), BBSquare::new(*to)),
-            BBMove::ShortCastle => write!(f, "O-O"),
-            BBMove::LongCastle => write!(f, "O-O-O"),
-            BBMove::PawnPromotion { from, to, promote_to } => write!(f, "{}{}={}", 
-                BBSquare::new(*from), 
-                BBSquare::new(*to), 
+            Self::Normal { from, to, .. } => write!(f, "{}{}", Square::new(*from), Square::new(*to)),
+            Self::ShortCastle => write!(f, "O-O"),
+            Self::LongCastle => write!(f, "O-O-O"),
+            Self::PawnPromotion { from, to, promote_to } => write!(f, "{}{}={}", 
+                Square::new(*from), 
+                Square::new(*to), 
                 match promote_to {
                     PieceType::Queen => "Q",
                     PieceType::Rook => "R",

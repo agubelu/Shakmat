@@ -1,7 +1,7 @@
 use std::result::Result;
 
 use super::super::board::Pieces;
-use crate::chess::{Color, CastlingRights, BitBoard, BBSquare};
+use crate::chess::{Color, CastlingRights, BitBoard, Square};
 use crate::chess::{Color::*, PieceType::*};
 
 pub const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -48,7 +48,7 @@ pub fn read_fen(fen: &str) -> Result<FENInfo, String> {
 
     // Load en passant square, if any
     if fen_parts[3] != "-" {
-        fen_info.en_passant_square = BBSquare::from_notation(fen_parts[3])?.as_bitboard();
+        fen_info.en_passant_square = Square::from_notation(fen_parts[3])?.as_bitboard();
     }
 
     // Load halfmoves since capture and fullmoves since start
@@ -74,7 +74,7 @@ fn load_board(board_info: &str, fen_info: &mut FENInfo) -> Result<(), String> {
             if is_digit {
                 file += ch.to_digit(10).unwrap() as usize;
             } else {
-                let bb = BBSquare::from_file_rank(file as u8, rank as u8)?.as_bitboard();
+                let bb = Square::from_file_rank(file as u8, rank as u8)?.as_bitboard();
                 let (color, piece) = match ch {
                     'r' => (Black, Rook),
                     'n' => (Black, Knight),
