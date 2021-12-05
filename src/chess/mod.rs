@@ -1,9 +1,9 @@
 mod board;
 mod fen;
 mod game_elements; 
+pub mod magic;
 
-pub use board::{Board, Piece};
-pub use game_elements::{Color, Move, PieceType, CastlingRights, Position};
+pub use board::{BitBoard, Board};
+pub use game_elements::{Color, PieceType, CastlingRights, Move, Square};
 
 use game_elements::position;
-use board::PieceArray;

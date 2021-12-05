@@ -1,23 +1,23 @@
 use std::result::Result;
 
-use crate::chess::{Color, CastlingRights, Position, Piece, PieceArray};
+use super::super::board::Pieces;
+use crate::chess::{Color, CastlingRights, BitBoard, Square};
 use crate::chess::{Color::*, PieceType::*};
-use crate::chess::position::CoordElem;
 
 pub const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 pub struct FENInfo {
     pub turn: Color,
     pub castling_rights: CastlingRights,
-    pub en_passant_square: Option<Position>,
+    pub en_passant_square: BitBoard,
     pub halfmoves_since_capture: u16,
     pub fullmoves_since_start: u16,
-    pub black_pieces: PieceArray,
-    pub white_pieces: PieceArray
+    pub black_pieces: Pieces,
+    pub white_pieces: Pieces
 }
 
 pub fn read_fen(fen: &str) -> Result<FENInfo, String> {
-    let fen_parts: Vec<&str> = fen.split(' ').collect();
+    let fen_parts: Vec<&str> = fen.split_whitespace().collect();
 
     if fen_parts.len() != 6 {
         return Err("The provided FEN must have 6 parts".to_string());
@@ -26,11 +26,11 @@ pub fn read_fen(fen: &str) -> Result<FENInfo, String> {
     let mut fen_info = FENInfo {
         turn: Color::White,
         castling_rights: CastlingRights::none(),
-        en_passant_square: None,
+        en_passant_square: BitBoard::new(0),
         halfmoves_since_capture: 0,
         fullmoves_since_start: 0,
-        black_pieces: [None; 16],
-        white_pieces: [None; 16]
+        black_pieces: Pieces::default(),
+        white_pieces: Pieces::default()
     };
 
     // Load the current board state, return an error if we find an unexpected character
@@ -48,7 +48,7 @@ pub fn read_fen(fen: &str) -> Result<FENInfo, String> {
 
     // Load en passant square, if any
     if fen_parts[3] != "-" {
-        fen_info.en_passant_square = Some(Position::from_notation(fen_parts[3])?);
+        fen_info.en_passant_square = Square::from_notation(fen_parts[3])?.as_bitboard();
     }
 
     // Load halfmoves since capture and fullmoves since start
@@ -65,10 +65,6 @@ fn load_board(board_info: &str, fen_info: &mut FENInfo) -> Result<(), String> {
         return Err("The board must have 8 rows".to_string());
     }
 
-    // Store the pieces in vectors, which will then be dumped into the piece array
-    let mut white_pieces = Vec::with_capacity(16);
-    let mut black_pieces = Vec::with_capacity(16);
-
     for (row_i, row_info) in rows.iter().enumerate() {
         let rank = 7 - row_i;
         let mut file = 0;
@@ -78,64 +74,40 @@ fn load_board(board_info: &str, fen_info: &mut FENInfo) -> Result<(), String> {
             if is_digit {
                 file += ch.to_digit(10).unwrap() as usize;
             } else {
-                let pos = Position::new_0based(file as CoordElem, rank as CoordElem);
-                let piece = match ch {
-                    'r' => Piece::new(Black, Rook, pos),
-                    'n' => Piece::new(Black, Knight, pos),
-                    'b' => Piece::new(Black, Bishop, pos),
-                    'q' => Piece::new(Black, Queen, pos),
-                    'k' => Piece::new(Black, King, pos),
-                    'p' => Piece::new(Black, Pawn, pos),
-                    'R' => Piece::new(White, Rook, pos),
-                    'N' => Piece::new(White, Knight, pos),
-                    'B' => Piece::new(White, Bishop, pos),
-                    'Q' => Piece::new(White, Queen, pos),
-                    'K' => Piece::new(White, King, pos),
-                    'P' => Piece::new(White, Pawn, pos),
+                let bb = Square::from_file_rank(file as u8, rank as u8)?.as_bitboard();
+                let (color, piece) = match ch {
+                    'r' => (Black, Rook),
+                    'n' => (Black, Knight),
+                    'b' => (Black, Bishop),
+                    'q' => (Black, Queen),
+                    'k' => (Black, King),
+                    'p' => (Black, Pawn),
+                    'R' => (White, Rook),
+                    'N' => (White, Knight),
+                    'B' => (White, Bishop),
+                    'Q' => (White, Queen),
+                    'K' => (White, King),
+                    'P' => (White, Pawn),
                      _  if is_digit => continue, // Already handled
                      _  => return Err(format!("Invalid character '{}' while reading the board state from FEN", ch))
                 };
 
-                // Insert it into the corresponding vec
-                let piece_vec = match piece.color() {
-                    White => &mut white_pieces,
-                    Black => &mut black_pieces,
+                let pieces = match color {
+                    White => &mut fen_info.white_pieces,
+                    Black => &mut fen_info.black_pieces,
                 };
 
-                // Ensure that the king is always in the first position
-                if piece.piece_type() == King {
-                    piece_vec.insert(0, piece);
-                } else {
-                    piece_vec.push(piece);
-                }
+                *pieces.get_pieces_of_type_mut(piece) |= bb;
 
                 file += 1;
             }
         }
     }
 
-    // Check that both colors have at least one king
-    if white_pieces.is_empty() || white_pieces[0].piece_type() != King {
-        return Err("White must have at least one king".to_owned());
-    }
-
-    if black_pieces.is_empty() || black_pieces[0].piece_type() != King {
-        return Err("Black must have at least one king".to_owned());
-    }
-
-    // Current limitation: the piece array in the board only supports
-    // 16 pieces per side
-    if black_pieces.len() > 16 || white_pieces.len() > 16 {
-        return Err("Due to current limitations, only a maximum of 16 pieces per side are supported.".to_owned())
-    }
-
-    // Everything's fine, dump the pieces into the arrays
-    for (i, piece) in white_pieces.drain(..).enumerate() {
-        fen_info.white_pieces[i] = Some(piece);
-    }
-
-    for (i, piece) in black_pieces.drain(..).enumerate() {
-        fen_info.black_pieces[i] = Some(piece);
+    if fen_info.white_pieces.get_pieces_of_type(King).is_empty() {
+        return Err("White must have a king!".to_owned());
+    } else if fen_info.black_pieces.get_pieces_of_type(King).is_empty() {
+        return Err("Black must have a king!".to_owned());
     }
 
     Ok(())

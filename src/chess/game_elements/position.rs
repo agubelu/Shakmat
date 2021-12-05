@@ -1,30 +1,40 @@
-use std::{ops::Mul, result::Result};
-use crate::chess::{Piece, Board, PieceType, Color};
+use std::fmt::{Display, Formatter};
+use std::result::Result;
+use crate::chess::BitBoard;
 
-pub type CoordElem = i8;
-type Coord = (CoordElem, CoordElem);
+type FmtResult = std::fmt::Result;
 
-pub const UP: Coord = (0, 1);
-pub const DOWN: Coord = (0, -1);
-pub const LEFT: Coord = (-1, 0);
-pub const RIGHT: Coord = (1, 0);
-pub const UP_LEFT: Coord = (-1, 1);
-pub const UP_RIGHT: Coord = (1, 1);
-pub const DOWN_LEFT: Coord = (-1, -1);
-pub const DOWN_RIGHT: Coord = (1, -1);
-
-pub const KNIGHT_MOVES: [Coord; 8] = [(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)];
-pub const KING_MOVES: [Coord; 8] = [UP, DOWN, LEFT, RIGHT, UP_LEFT, UP_RIGHT, DOWN_LEFT, DOWN_RIGHT];
-    
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Position {
-    pub file: CoordElem,
-    pub rank: CoordElem
+pub struct Square {
+    square: u8,
 }
 
-impl Position {
-    pub fn new_0based(file: CoordElem, rank: CoordElem) -> Self {
-        Position { file, rank}
+impl Square {
+    pub fn new(square: u8) -> Self {
+        assert!(square < 64);
+        Self { square }
+    }
+
+    pub fn file(&self) -> u8 {
+        7 - (self.square % 8)
+    }
+
+    pub fn rank(&self) -> u8 {
+        self.square / 8
+    }
+
+    pub fn as_bitboard(&self) -> BitBoard {
+        BitBoard::new(1 << self.square)
+    }
+
+    pub fn from_file_rank(file: u8, rank: u8) -> Result<Self, String> {
+        if file > 7 {
+            Err(format!("Invalid file: {}", file))
+        } else if rank > 7 {
+            Err(format!("Invalid rank: {}", file))
+        } else {
+            Ok(Self::new(rank * 8 + (7 - file)))
+        }
     }
 
     pub fn from_notation(pos: &str) -> Result<Self, String> {
@@ -58,157 +68,25 @@ impl Position {
              x  => return Err(format!("Invalid rank: {}", x)),
         };
 
-        Ok(Position::new_0based(file, rank))
-    }
-
-    pub fn as_notation(&self) -> String {
-        let file = match self.file {
-            0 => 'a',
-            1 => 'b',
-            2 => 'c',
-            3 => 'd',
-            4 => 'e',
-            5 => 'f',
-            6 => 'g',
-            7 => 'h',
-             _ => panic!("Invalid file: {}", self.file),
-        };
-
-        let rank = match self.rank {
-            0 => '1',
-            1 => '2',
-            2 => '3',
-            3 => '4',
-            4 => '5',
-            5 => '6',
-            6 => '7',
-            7 => '8',
-             _ => panic!("Invalid rank: {}", self.rank),
-        };
-
-        format!("{}{}", file, rank)
-    }
-
-    pub fn knight_jumps(&self) -> Vec<Position> {
-        KNIGHT_MOVES.iter()
-            .map(|(df, dr)| Position::new_0based(self.file + df, self.rank + dr))
-            .filter(|pos| pos.is_valid())
-            .collect()
-    }
-
-    pub fn king_moves(&self) -> Vec<Position> {
-        KING_MOVES.iter()
-            .map(|(df, dr)| Position::new_0based(self.file + df, self.rank + dr))
-            .filter(|pos| pos.is_valid())
-            .collect()
-    }
-
-    // Traces rays from the position in a certain direction until the edge of
-    // the board, or the first piece hit of the opposite color.
-    // Returns the list of visited positions and the piece found at the end,
-    // or None if the ray ends at the edge of the board.
-    pub fn trace_ray<'a>(&self, board: &'a Board, dir: Coord, color_moving: Color) -> (Vec<Position>, Option<&'a Piece>) {
-        let mut positions = Vec::new();
-        let mut next_pos = self.add_delta(&dir);
-        let mut piece_found = None;
-
-        while next_pos.is_valid() {
-            if let Some(piece) = board.get_pos(&next_pos) {
-                piece_found = Some(piece);
-                if piece.color() != color_moving {
-                    // The color of the piece that is moving can capture that piece
-                    positions.push(next_pos);
-                    return (positions, Some(piece));
-                }
-                break;
-            }
-            positions.push(next_pos);
-            next_pos = next_pos.add_delta(&dir);
-        }
-
-        (positions, piece_found)
-    }
-
-    pub fn is_attacked_by(&self, board: &Board, attacker_color: Color) -> bool {
-        // Check for horsies
-        for pos in self.knight_jumps() {
-            if matches!(board.get_pos(&pos), Some(p) if p.color() == attacker_color && p.piece_type() == PieceType::Knight) {
-                return true;
-            }
-        }
-
-        // Check for sliding pieces and pawns. First, diagonals
-        for dir in [UP_LEFT, UP_RIGHT, DOWN_LEFT, DOWN_RIGHT].iter() {
-            let (moves, piece_opt) = self.trace_ray(board, *dir, !attacker_color);
-            let piece = match piece_opt {
-                // The piece must be of the attacking color
-                Some(p) if p.color() == attacker_color => p,
-                _ => continue,
-            };
-
-            // The piece must be: a queen, a bishop or
-            // - a king, if the length of the ray is 1 (it's right next to the square)
-            // - a pawn, if the length of the ray is 1 and the direction of the ray
-            //   is the opposite of the pawn's attacking direction
-            let vertical_dir_pawn_attack = match attacker_color {
-                Color::White => -1,
-                Color::Black =>  1,
-            };
-
-            let typ = piece.piece_type();
-            if typ == PieceType::Queen || typ == PieceType::Bishop ||
-                 (moves.len() == 1 && (typ == PieceType::King || (typ == PieceType::Pawn && dir.1 == vertical_dir_pawn_attack))) {
-                    return true;
-            }
-        }
-
-        // Then, horizontal and vertical
-        for dir in [UP, DOWN, LEFT, RIGHT].iter() {
-            let (moves, piece_opt) = self.trace_ray(board, *dir, !attacker_color);
-            let piece = match piece_opt {
-                // The piece must be of the attacking color
-                Some(p) if p.color() == attacker_color => p,
-                _ => continue,
-            };
-
-            // In this case, the piece must be either a queen, a rook
-            // or a king at distance 1
-            let typ = piece.piece_type();
-            if typ == PieceType::Queen || typ == PieceType::Rook || (moves.len() == 1 && typ == PieceType::King) {
-                return true;
-            }
-        }
-
-        false
-    }
-
-    pub fn add_delta(&self, delta: &Coord) -> Position {
-        Position::new_0based(self.file + delta.0, self.rank + delta.1)
-    }
-
-    pub fn file_u(&self) -> usize {
-        self.file as usize
-    }
-
-    pub fn rank_u(&self) -> usize {
-        self.rank as usize
-    }
-
-    pub fn is_valid(&self) -> bool {
-        self.rank >= 0 && self.rank < 8 && self.file >= 0 && self.file < 8
+        Ok(Self::from_file_rank(file, rank).unwrap())
     }
 }
 
-impl Mul<CoordElem> for Position {
-    type Output = Position;
+impl Display for Square {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let file = match self.file() {
+            0 => "a",
+            1 => "b",
+            2 => "c",
+            3 => "d",
+            4 => "e",
+            5 => "f",
+            6 => "g",
+            7 => "h",
+            _ => unreachable!()
+        };
 
-    fn mul(self, rhs: CoordElem) -> Position {
-        Position::new_0based(self.file * rhs, self.rank * rhs)
-    }
-}
-
-impl PartialEq<Coord> for &Position {
-    fn eq(&self, other: &Coord) -> bool {
-        self.file == other.0 && self.rank == other.1
+        let rank = self.rank() + 1;
+        format!("{}{}", file, rank).fmt(f)
     }
 }

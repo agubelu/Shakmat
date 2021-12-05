@@ -1,5 +1,6 @@
 pub mod board;
-pub mod piece;
+pub mod bitboard;
+mod movegen;
 
-pub use board::{Board, PieceArray};
-pub use piece::Piece;
+pub use board::{Board, Pieces};
+pub use bitboard::BitBoard;

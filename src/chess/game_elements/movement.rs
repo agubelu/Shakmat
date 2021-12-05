@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use rocket::serde::{Serialize, Deserialize, Serializer, Deserializer};
 
-use super::{Position, PieceType};
+use super::{PieceType, Square};
 
 // Avoid clashes between the core Result and the formatter Result
 type StdResult<T, E> = core::result::Result<T, E>;
@@ -9,25 +9,40 @@ type FmtResult = std::fmt::Result;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Move {
-    NormalMove { from: Position, to: Position },
+    Normal { piece: PieceType, from: u8, to: u8, ep: bool},
+    PawnPromotion { from: u8, to: u8, promote_to: PieceType },
     ShortCastle,
-    LongCastle,
-    PawnPromotion { from: Position, to: Position, promote_to: PieceType}
+    LongCastle
 }
 
 impl Move {
-    pub fn to(&self) -> &Position {
+    pub fn to(&self) -> u8 {
         match self {
-            Move::NormalMove { to, .. } => to,
-            Move::PawnPromotion { to, .. } => to,
+            Self::Normal { to, .. } => *to,
+            Self::PawnPromotion { to, .. } => *to,
             _ => unimplemented!()
         }
     }
 
-    pub fn from(&self) -> &Position {
+    pub fn from(&self) -> u8 {
         match self {
-            Move::NormalMove { from, .. } => from,
-            Move::PawnPromotion { from, .. } => from,
+            Self::Normal { from, .. } => *from,
+            Self::PawnPromotion { from, .. } => *from,
+            _ => unimplemented!()
+        }
+    }
+
+    pub fn is_ep(&self) -> bool {
+        match self {
+            Self::Normal {ep, ..} => *ep,
+            _ => false
+        }
+    }
+
+    pub fn piece_type(&self) -> PieceType {
+        match self {
+            Self::Normal { piece, .. } => *piece,
+            Self::PawnPromotion { .. } => PieceType::Pawn,
             _ => unimplemented!()
         }
     }
@@ -36,12 +51,12 @@ impl Move {
 impl Display for Move {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         match self {
-            Move::NormalMove { from, to } => write!(f, "{}{}", from.as_notation(), to.as_notation()),
-            Move::ShortCastle => write!(f, "O-O"),
-            Move::LongCastle => write!(f, "O-O-O"),
-            Move::PawnPromotion { from, to, promote_to } => write!(f, "{}{}={}", 
-                from.as_notation(), 
-                to.as_notation(), 
+            Self::Normal { from, to, .. } => write!(f, "{}{}", Square::new(*from), Square::new(*to)),
+            Self::ShortCastle => write!(f, "O-O"),
+            Self::LongCastle => write!(f, "O-O-O"),
+            Self::PawnPromotion { from, to, promote_to } => write!(f, "{}{}={}", 
+                Square::new(*from), 
+                Square::new(*to), 
                 match promote_to {
                     PieceType::Queen => "Q",
                     PieceType::Rook => "R",
@@ -53,6 +68,7 @@ impl Display for Move {
     }
 }
 
+/*
 // Custom serialization and deserialization, following the previous formatting
 impl Serialize for Move {
     fn serialize<S: Serializer>(&self, serializer: S) -> StdResult<S::Ok, S::Error> {
@@ -121,3 +137,4 @@ impl<'a> Display for UnknownMove<'a> {
         write!(f, "The move '{}' was not understood or is not valid", self.s)
     }        
 }
+*/
