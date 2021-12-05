@@ -36,52 +36,6 @@ pub struct Pieces {
     pub king: BitBoard,
 }
 
-impl Pieces {
-    pub fn get_pieces_of_type(&self, piece_type: PieceType) -> BitBoard {
-        match piece_type {
-            Pawn => self.pawns,
-            Knight => self.knights,
-            Bishop => self.bishops,
-            Rook => self.rooks,
-            Queen => self.queens,
-            King => self.king,
-        }
-    }
-
-    pub fn get_pieces_of_type_mut(&mut self, piece_type: PieceType) -> &mut BitBoard {
-        match piece_type {
-            Pawn => &mut self.pawns,
-            Knight => &mut self.knights,
-            Bishop => &mut self.bishops,
-            Rook => &mut self.rooks,
-            Queen => &mut self.queens,
-            King => &mut self.king,
-        }
-    }
-
-    pub fn apply_mask(&mut self, mask: BitBoard) {
-        self.pawns &= mask;
-        self.knights &= mask;
-        self.bishops &= mask;
-        self.rooks &= mask;
-        self.queens &= mask;
-        self.king &= mask;
-    }
-}
-
-impl Default for Pieces {
-    fn default() -> Self {
-        Self {
-            pawns: BitBoard::default(),
-            rooks: BitBoard::default(),
-            knights: BitBoard::default(),
-            bishops: BitBoard::default(),
-            queens: BitBoard::default(),
-            king: BitBoard::default(),
-        }
-    }
-}
-
 impl Board {
     pub fn from_fen(fen: &str) -> Result<Self, String> {
         let fen_info = read_fen(fen)?;
@@ -379,5 +333,51 @@ impl Display for Board {
         writeln!(f, "  └───┴───┴───┴───┴───┴───┴───┴───┘")?;
         writeln!(f, "    a   b   c   d   e   f   g   h ")?;
         Ok(())
+    }
+}
+
+impl Pieces {
+    pub fn get_pieces_of_type(&self, piece_type: PieceType) -> BitBoard {
+        match piece_type {
+            Pawn => self.pawns,
+            Knight => self.knights,
+            Bishop => self.bishops,
+            Rook => self.rooks,
+            Queen => self.queens,
+            King => self.king,
+        }
+    }
+
+    pub fn get_pieces_of_type_mut(&mut self, piece_type: PieceType) -> &mut BitBoard {
+        match piece_type {
+            Pawn => &mut self.pawns,
+            Knight => &mut self.knights,
+            Bishop => &mut self.bishops,
+            Rook => &mut self.rooks,
+            Queen => &mut self.queens,
+            King => &mut self.king,
+        }
+    }
+
+    pub fn apply_mask(&mut self, mask: BitBoard) {
+        self.pawns &= mask;
+        self.knights &= mask;
+        self.bishops &= mask;
+        self.rooks &= mask;
+        self.queens &= mask;
+        self.king &= mask;
+    }
+}
+
+impl Default for Pieces {
+    fn default() -> Self {
+        Self {
+            pawns: BitBoard::default(),
+            rooks: BitBoard::default(),
+            knights: BitBoard::default(),
+            bishops: BitBoard::default(),
+            queens: BitBoard::default(),
+            king: BitBoard::default(),
+        }
     }
 }
