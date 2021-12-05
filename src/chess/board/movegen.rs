@@ -1,3 +1,5 @@
+use std::ops::BitAnd;
+
 use crate::chess::{BBMove, BBBoard, Color, PieceType, BitBoard};
 use Color::*;
 use PieceType::*;
@@ -11,54 +13,85 @@ const WHITE_LONG_CASTLE_BB: BitBoard = BitBoard::new(112);
 const BLACK_SHORT_CASTLE_BB: BitBoard = BitBoard::new(0x0600000000000000);
 const BLACK_LONG_CASTLE_BB: BitBoard = BitBoard::new(0x7000000000000000);
 
+const THIRD_RANK_MASK: BitBoard = BitBoard::new(0x0000000000FF0000);
+const SIXTH_RANK_MASK: BitBoard = BitBoard::new(0x0000FF0000000000);
+
 pub fn get_pseudolegal_moves(board: &BBBoard, color: Color) -> Vec<BBMove> {
-    let mut moves = Vec::with_capacity(50); // just to be safe and avoid reallocations
+    let mut moves = Vec::with_capacity(100); // just to be safe and avoid reallocations
     let pieces = board.get_pieces(color);
+    let enemy_pieces = board.get_color_bitboard(!color);
     let friendly_pieces_mask = !board.get_color_bitboard(color);
     let all_pieces = board.get_all_bitboard();
 
-    // Pawns
-    // TO-DO
+    // Ah yes, pawns. The funniest of pieces.
+    // We need an aux vec to later transform the moves that end up in the
+    // last rank to promotion moves
+    let mut pawn_moves = Vec::with_capacity(50);
+    let ep_square = board.ep_square();
+    let ep_index = ep_square.get_u64().trailing_zeros() as u8;
+    pieces.pawns.piece_indices().for_each(|from| {
+        // Captures, which must target either an enemy piece or the e.p. square
+        let cap_bb = magic::pawn_attacks(from as usize, color) & (enemy_pieces | ep_square);
+        pawn_moves.extend(cap_bb.piece_indices().map(|to| BBMove::Normal { from, to, piece: Pawn, ep: to == ep_index }));
+
+        // Next, pushes. Going one step forward is always an option, if nothing is
+        // in the way
+        let mut push_bb = magic::pawn_pushes(from as usize, color) & !all_pieces;
+
+        // If it's a white pawn in the second rank, disable the double push if there
+        // is a piece in front of it
+        if color == Color::White && from < 16 {
+            push_bb &= !((all_pieces & THIRD_RANK_MASK) << 8);
+        } else if color == Color::Black && from > 47 {
+            push_bb &= !((all_pieces & SIXTH_RANK_MASK) >> 8);
+        }
+
+        pawn_moves.extend(push_bb.piece_indices().map(|to| BBMove::Normal { from, to, piece: Pawn, ep: false }));
+    });
+
+    // Transform the pawn moves into promotions if needed
+    moves.extend(pawn_moves.into_iter().flat_map(|mv| {
+        if in_promotion_rank(mv.to(), color) {
+            vec![
+                BBMove::PawnPromotion { from: mv.from(), to: mv.to(), promote_to: Queen },
+                BBMove::PawnPromotion { from: mv.from(), to: mv.to(), promote_to: Rook },
+                BBMove::PawnPromotion { from: mv.from(), to: mv.to(), promote_to: Bishop },
+                BBMove::PawnPromotion { from: mv.from(), to: mv.to(), promote_to: Knight }
+            ].into_iter()
+        } else {
+            vec![mv].into_iter()
+        }
+    }));
 
     // Rook
     pieces.rooks.piece_indices().for_each(|from| {
         let move_bb = magic::rook_moves(from as usize, all_pieces) & friendly_pieces_mask;
-        move_bb.piece_indices().for_each(|to| moves.push( 
-            BBMove::Normal { from, to, piece: Rook, ep: false } 
-        ))
+        moves.extend(move_bb.piece_indices().map(|to| BBMove::Normal { from, to, piece: Rook, ep: false }));
     });
 
     // Bishop
     pieces.bishops.piece_indices().for_each(|from| {
         let move_bb = magic::bishop_moves(from as usize, all_pieces) & friendly_pieces_mask;
-        move_bb.piece_indices().for_each(|to| moves.push( 
-            BBMove::Normal { from, to, piece: Bishop, ep: false } 
-        ))
+        moves.extend(move_bb.piece_indices().map(|to| BBMove::Normal { from, to, piece: Bishop, ep: false }));
     });
 
     // Queen
     pieces.queens.piece_indices().for_each(|from| {
         let move_bb = magic::queen_moves(from as usize, all_pieces) & friendly_pieces_mask;
-        move_bb.piece_indices().for_each(|to| moves.push( 
-            BBMove::Normal { from, to, piece: Queen, ep: false } 
-        ))
+        moves.extend(move_bb.piece_indices().map(|to| BBMove::Normal { from, to, piece: Queen, ep: false }));
     });
 
     // Horsey
     pieces.knights.piece_indices().for_each(|from| {
         let move_bb = magic::knight_moves(from as usize) & friendly_pieces_mask;
-        move_bb.piece_indices().for_each(|to| moves.push( 
-            BBMove::Normal { from, to, piece: Knight, ep: false } 
-        ))
+        moves.extend(move_bb.piece_indices().map(|to| BBMove::Normal { from, to, piece: Knight, ep: false }));
     });
 
     // King
     // First, the simple 1-square moves
     pieces.king.piece_indices().for_each(|from| {
         let move_bb = magic::king_moves(from as usize) & friendly_pieces_mask;
-        move_bb.piece_indices().for_each(|to| moves.push( 
-            BBMove::Normal { from, to, piece: King, ep: false } 
-        ))
+        moves.extend(move_bb.piece_indices().map(|to| BBMove::Normal { from, to, piece: King, ep: false }));
     });
 
     // Next, castling. Here we only test that the needed squares are
@@ -80,4 +113,27 @@ pub fn get_pseudolegal_moves(board: &BBBoard, color: Color) -> Vec<BBMove> {
     }
 
     moves
+}
+
+pub fn get_controlled_squares(board: &BBBoard, color: Color) -> BitBoard {
+    // TODO idea: map and reduce by or'ing, and OR controlled with the result?
+    let mut controlled = BitBoard::new(0);
+    let our_pieces = board.get_pieces(color);
+    let all_pieces = board.get_all_bitboard();
+
+    our_pieces.king.piece_indices().for_each(|from| controlled |= magic::king_moves(from as usize));
+    our_pieces.knights.piece_indices().for_each(|from| controlled |= magic::knight_moves(from as usize));
+    our_pieces.queens.piece_indices().for_each(|from| controlled |= magic::queen_moves(from as usize, all_pieces));
+    our_pieces.bishops.piece_indices().for_each(|from| controlled |= magic::bishop_moves(from as usize, all_pieces));
+    our_pieces.rooks.piece_indices().for_each(|from| controlled |= magic::rook_moves(from as usize, all_pieces));
+    our_pieces.pawns.piece_indices().for_each(|from| controlled |= magic::pawn_attacks(from as usize, color));
+
+    controlled
+}
+
+fn in_promotion_rank(pos: u8, color: Color) -> bool {
+    match color {
+        Color::Black => pos < 8,
+        Color::White => pos > 55
+    }
 }

@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use std::ops::{BitAnd, BitOr, BitOrAssign, Not};
+use std::ops::{BitAnd, BitOr, BitOrAssign, BitAndAssign, BitXorAssign, Not, Shl, Shr};
 use std::cmp::PartialEq;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -8,8 +8,7 @@ pub struct BitBoard {
 }
 
 pub struct PieceIndexIter {
-    bb: u64,
-    cur_index: u8
+    value: u64,
 }
 
 impl BitBoard {
@@ -33,7 +32,7 @@ impl BitBoard {
         self.bb &= !pos;
     }
 
-    pub fn reset(&mut self) {
+    pub fn clear(&mut self) {
         self.bb = 0;
     }
 
@@ -42,7 +41,7 @@ impl BitBoard {
     }
 
     pub fn piece_indices(&self) -> PieceIndexIter {
-        PieceIndexIter { bb: self.bb, cur_index: 0 }
+        PieceIndexIter { value: self.bb }
     }
 }
 
@@ -51,13 +50,12 @@ impl Iterator for PieceIndexIter {
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.bb == 0 {
-            None
-        } else {
-            let i = self.bb.trailing_zeros() as u8 + 1;
-            self.bb >>= i;
-            self.cur_index += i;
-            Some(self.cur_index - 1)
+        match self.value {
+            0 => None,
+            x => {
+                self.value = x & (x - 1);
+                Some(x.trailing_zeros() as u8)
+            }
         }
     }
 }
@@ -91,6 +89,12 @@ impl BitAnd<u64> for BitBoard {
     }
 }
 
+impl BitAndAssign<Self> for BitBoard {
+    fn bitand_assign(&mut self, rhs: Self) {
+        self.bb &= rhs.bb;
+    }
+}
+
 impl BitOr<Self> for BitBoard {
     type Output = Self;
 
@@ -105,11 +109,33 @@ impl BitOrAssign<Self> for BitBoard {
     }
 }
 
+impl BitXorAssign<Self> for BitBoard {
+    fn bitxor_assign(&mut self, rhs: Self) {
+        self.bb ^= rhs.bb;
+    }
+}
+
 impl BitOr<u64> for BitBoard {
     type Output = Self;
 
     fn bitor(self, other: u64) -> Self::Output {
         Self::new(self.bb | other)
+    }
+}
+
+impl Shl<u8> for BitBoard {
+    type Output = Self;
+
+    fn shl(self, rhs: u8) -> Self::Output {
+        BitBoard::new(self.bb << rhs)
+    }
+}
+
+impl Shr<u8> for BitBoard {
+    type Output = Self;
+
+    fn shr(self, rhs: u8) -> Self::Output {
+        BitBoard::new(self.bb >> rhs)
     }
 }
 

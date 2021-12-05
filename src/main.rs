@@ -11,14 +11,19 @@ mod chess;
 //use std::{ops::BitAnd, sync::Mutex};
 //use std::time::Instant;
 
-use chess::{Board, Move, Position, BitBoard, BBBoard, BBSquare};
-use chess::magic;
+use chess::{BitBoard, BBBoard, BBSquare};
 
 fn main() {
-    let board = BBBoard::from_fen("rnbqk2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1").unwrap();
-    println!("{}", board);
-    board.pseudolegal_moves(!board.turn_color()).iter().for_each(|m| println!("{}", m));
+    
+    //let board = BBBoard::default();
+    let board = BBBoard::from_fen("rnbqkbnr/pppppppp/8/8/8/8/P3P2P/R3K2R w KQkq - 0 1").unwrap();
+    
+    for mv in board.pseudolegal_moves(chess::Color::White) {
+        println!("{}", mv);
+        println!("{}", board.make_move(mv, false).unwrap());
+    }
 }
+
 /*
 #[launch]
 fn run() -> _ {
