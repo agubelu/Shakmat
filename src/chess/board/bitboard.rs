@@ -16,20 +16,16 @@ impl BitBoard {
         BitBoard { bb }
     }
 
+    pub fn from_square(square: u8) -> Self {
+        BitBoard { bb: 1 << square }
+    }
+
     pub fn get_u64(&self) -> u64 {
         self.bb
     }
 
     pub fn wrapping_mul(&self, other: u64) -> u64 {
         self.bb.wrapping_mul(other)
-    }
-
-    pub fn set_one(&mut self, pos: u64) {
-        self.bb |= pos;
-    }
-
-    pub fn set_zero(&mut self, pos: u64) {
-        self.bb &= !pos;
     }
 
     pub fn clear(&mut self) {

@@ -59,7 +59,7 @@ impl Board {
         Ok(board)
     }
 
-    pub fn make_move(&self, movement: Move, check_legality: bool) -> Result<Self, String> {
+    pub fn make_move(&self, movement: &Move, check_legality: bool) -> Result<Self, String> {
         if check_legality {
             // This move was received from the user, check that it is indeed legal
             // We do this by making sure it exists in the list of allowed moves
@@ -74,15 +74,15 @@ impl Board {
 
         // Perform the movement in question
         if matches!(movement, Move::LongCastle | Move::ShortCastle) {
-            new_board.castle(&movement);
+            new_board.castle(movement);
             // Castling calls move_piece twice, so the half-turn counter for
             // the 50 move rule is updated twice, that's why we must substract 1
             new_board.half_turns_til_50move_draw -= 1;
         } else {
-            new_board.move_piece(&movement);
+            new_board.move_piece(movement);
         }
 
-        new_board.update_en_passant(&movement);
+        new_board.update_en_passant(movement);
 
         // Update the current color to play and the number of total turns,
         // if black just moved
@@ -95,11 +95,19 @@ impl Board {
         Ok(new_board)
     }
 
-    pub fn pseudolegal_moves(&self, color: Color) -> Vec<Move> {
-        movegen::get_pseudolegal_moves(self, color)
+    pub fn pseudolegal_moves(&self) -> Vec<Move> {
+        movegen::get_pseudolegal_moves(self, self.turn_color())
     }
 
-    pub fn is_in_check(&self, color: Color) -> bool {
+    pub fn legal_moves(&self) -> Vec<Move> {
+        self.pseudolegal_moves().into_iter()
+            .filter(|mv| matches!(mv, Move::ShortCastle | Move::LongCastle) ||
+                         !self.make_move(mv, false).unwrap().is_check(self.turn_color())
+            )
+            .collect()
+    }
+
+    pub fn is_check(&self, color: Color) -> bool {
         match color {
             White => !(self.white_pieces.king & self.black_attacks).is_empty(),
             Black => !(self.black_pieces.king & self.white_attacks).is_empty()
@@ -140,6 +148,17 @@ impl Board {
         self.all_pieces
     }
 
+    pub fn get_attack_bitboard(&self, color: Color) -> BitBoard {
+        match color {
+            White => self.white_attacks,
+            Black => self.black_attacks,
+        }
+    }
+
+    pub fn perft(&self, depth: u16) -> u64 {
+        self._perft(depth, true)
+    }
+
     ///////////////////////////////////////////////////////////////////////////
     /// Private auxiliary functions
 
@@ -149,8 +168,8 @@ impl Board {
         // target position. It only does single moves, not castling.
         // It is also assumed that it is only called by normal or promotion
         // moves, which implement .from() and .to()
-        let from_bb = BitBoard::new(1 << movement.from());
-        let to_bb = BitBoard::new(1 << movement.to());
+        let from_bb = BitBoard::from_square(movement.from());
+        let to_bb = BitBoard::from_square(movement.to());
         let (moving_color, enemy_color) = (self.turn_color(), !self.turn_color());
         let enemy_pieces = self.get_color_bitboard(enemy_color);
 
@@ -163,7 +182,7 @@ impl Board {
                 White => movement.to() - 8,
                 Black => movement.to() + 8,
             };
-            let target_bb = BitBoard::new(1 << target_ep);
+            let target_bb = BitBoard::from_square(target_ep);
             *self.get_pieces_mut(enemy_color).get_pieces_of_type_mut(Pawn) ^= target_bb;
             is_capture = true;
         } else if !(enemy_pieces & to_bb).is_empty() {
@@ -221,9 +240,9 @@ impl Board {
                 // 8, so we can use that to detect if it's a double push
                 let color = self.turn_color();
                 if color == White && to - from == 16 {
-                    self.en_passant_target = BitBoard::new(*from as u64 + 8);
+                    self.en_passant_target = BitBoard::from_square(*from + 8);
                 } else if color == Black && from - to == 16 {
-                    self.en_passant_target = BitBoard::new(*from as u64 - 8);
+                    self.en_passant_target = BitBoard::from_square(*from - 8);
                 } else {
                     self.en_passant_target.clear();
                 }
@@ -281,6 +300,34 @@ impl Board {
         match color {
             White => &mut self.white_pieces,
             Black => &mut self.black_pieces
+        }
+    }
+
+    fn _perft(&self, depth: u16, multithread: bool) -> u64 {
+        if depth == 1 {
+            return self.legal_moves().len() as u64
+        }
+
+        let pseudo_moves = self.pseudolegal_moves();
+
+        if multithread {
+            pseudo_moves.into_par_iter().filter_map(|mv| {
+                let new_board = self.make_move(&mv, false).unwrap();
+                if matches!(mv, Move::LongCastle | Move::ShortCastle) || !new_board.is_check(self.turn_color()) {
+                    Some(new_board._perft(depth - 1, false))
+                } else {
+                    None
+                }
+            }).sum()
+        } else {
+            pseudo_moves.into_iter().filter_map(|mv| {
+                let new_board = self.make_move(&mv, false).unwrap();
+                if matches!(mv, Move::LongCastle | Move::ShortCastle) || !new_board.is_check(self.turn_color()) {
+                    Some(new_board._perft(depth - 1, false))
+                } else {
+                    None
+                }
+            }).sum()
         }
     }
 }

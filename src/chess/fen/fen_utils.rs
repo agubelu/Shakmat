@@ -17,7 +17,7 @@ pub struct FENInfo {
 }
 
 pub fn read_fen(fen: &str) -> Result<FENInfo, String> {
-    let fen_parts: Vec<&str> = fen.split(' ').collect();
+    let fen_parts: Vec<&str> = fen.split_whitespace().collect();
 
     if fen_parts.len() != 6 {
         return Err("The provided FEN must have 6 parts".to_string());

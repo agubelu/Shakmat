@@ -15,10 +15,6 @@ impl Square {
         Self { square }
     }
 
-    pub fn square(&self) -> u8 {
-        self.square
-    }
-
     pub fn file(&self) -> u8 {
         7 - (self.square % 8)
     }

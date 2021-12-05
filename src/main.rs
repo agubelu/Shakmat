@@ -9,19 +9,18 @@ mod chess;
 //use std::fs::File;
 //use std::io::Write;
 //use std::{ops::BitAnd, sync::Mutex};
-//use std::time::Instant;
+use std::time::Instant;
 
 use chess::{BitBoard, Board};
 
 fn main() {
     
-    //let board = BBBoard::default();
-    let board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/P3P2P/R3K2R w KQkq - 0 1").unwrap();
+    let board = Board::default();
+    let t = Instant::now();
+    println!("{}", board.perft(7));
+    let time = t.elapsed().as_millis() as f64 / 1000.0;
+    println!("{:.2}", time);
     
-    for mv in board.pseudolegal_moves(chess::Color::White) {
-        println!("{}", mv);
-        println!("{}", board.make_move(mv, false).unwrap());
-    }
 }
 
 /*

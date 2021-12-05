@@ -1,5 +1,3 @@
-use std::ops::BitAnd;
-
 use crate::chess::{Move, Board, Color, PieceType, BitBoard};
 use Color::*;
 use PieceType::*;
@@ -7,11 +5,15 @@ use PieceType::*;
 use crate::chess::magic;
 
 // Bitboards that have 1's in the required spaces to castle for
-// both colors
+// both colors, and those that must not be in check to castle
 const WHITE_SHORT_CASTLE_BB: BitBoard = BitBoard::new(6);
 const WHITE_LONG_CASTLE_BB: BitBoard = BitBoard::new(112);
 const BLACK_SHORT_CASTLE_BB: BitBoard = BitBoard::new(0x0600000000000000);
 const BLACK_LONG_CASTLE_BB: BitBoard = BitBoard::new(0x7000000000000000);
+const WHITE_SHORT_CASTLE_CHECKS: BitBoard = BitBoard::new(14);
+const WHITE_LONG_CASTLE_CHECKS: BitBoard = BitBoard::new(56);
+const BLACK_SHORT_CASTLE_CHECKS: BitBoard = BitBoard::new(0x0E00000000000000);
+const BLACK_LONG_CASTLE_CHECKS: BitBoard = BitBoard::new(0x3800000000000000);
 
 const THIRD_RANK_MASK: BitBoard = BitBoard::new(0x0000000000FF0000);
 const SIXTH_RANK_MASK: BitBoard = BitBoard::new(0x0000FF0000000000);
@@ -94,21 +96,23 @@ pub fn get_pseudolegal_moves(board: &Board, color: Color) -> Vec<Move> {
         moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, piece: King, ep: false }));
     });
 
-    // Next, castling. Here we only test that the needed squares are
-    // empty and that the king has the right to castle, we test for checks
-    // later on upon legal move filtering
-    // We can assume that, if the color has the right to castle, both
-    // the king and the rook are in the required positions
-    let (short_bb, long_bb) = match color {
-        White => (WHITE_SHORT_CASTLE_BB, WHITE_LONG_CASTLE_BB),
-        Black => (BLACK_SHORT_CASTLE_BB, BLACK_LONG_CASTLE_BB)
+    // Next, castling. Legality check of castling is done here too
+    let (short_bb, long_bb, short_checks, long_checks) = match color {
+        White => (WHITE_SHORT_CASTLE_BB, WHITE_LONG_CASTLE_BB,
+                  WHITE_SHORT_CASTLE_CHECKS, WHITE_LONG_CASTLE_CHECKS),
+        Black => (BLACK_SHORT_CASTLE_BB, BLACK_LONG_CASTLE_BB,
+                  BLACK_SHORT_CASTLE_CHECKS, BLACK_LONG_CASTLE_CHECKS),
     };
 
-    if board.castling_info().can_castle_kingside(color) && (all_pieces & short_bb).is_empty() {
+    let attackers = board.get_attack_bitboard(!color);
+
+    if board.castling_info().can_castle_kingside(color) && (all_pieces & short_bb).is_empty()
+        && (attackers & short_checks).is_empty()  {
         moves.push(Move::ShortCastle);
     }
 
-    if board.castling_info().can_castle_queenside(color) && (all_pieces & long_bb).is_empty() {
+    if board.castling_info().can_castle_queenside(color) && (all_pieces & long_bb).is_empty()
+        && (attackers & long_checks).is_empty() {
         moves.push(Move::LongCastle);
     }
 
@@ -116,17 +120,16 @@ pub fn get_pseudolegal_moves(board: &Board, color: Color) -> Vec<Move> {
 }
 
 pub fn get_controlled_squares(board: &Board, color: Color) -> BitBoard {
-    // TODO idea: map and reduce by or'ing, and OR controlled with the result?
     let mut controlled = BitBoard::new(0);
     let our_pieces = board.get_pieces(color);
     let all_pieces = board.get_all_bitboard();
 
-    our_pieces.king.piece_indices().for_each(|from| controlled |= magic::king_moves(from as usize));
-    our_pieces.knights.piece_indices().for_each(|from| controlled |= magic::knight_moves(from as usize));
-    our_pieces.queens.piece_indices().for_each(|from| controlled |= magic::queen_moves(from as usize, all_pieces));
-    our_pieces.bishops.piece_indices().for_each(|from| controlled |= magic::bishop_moves(from as usize, all_pieces));
-    our_pieces.rooks.piece_indices().for_each(|from| controlled |= magic::rook_moves(from as usize, all_pieces));
-    our_pieces.pawns.piece_indices().for_each(|from| controlled |= magic::pawn_attacks(from as usize, color));
+    controlled |= our_pieces.king.piece_indices().map(|from| magic::king_moves(from as usize)).reduce(|a, b| a | b).unwrap_or_default();
+    controlled |= our_pieces.knights.piece_indices().map(|from| magic::knight_moves(from as usize)).reduce(|a, b| a | b).unwrap_or_default();
+    controlled |= our_pieces.queens.piece_indices().map(|from| magic::queen_moves(from as usize, all_pieces)).reduce(|a, b| a | b).unwrap_or_default();
+    controlled |= our_pieces.bishops.piece_indices().map(|from| magic::bishop_moves(from as usize, all_pieces)).reduce(|a, b| a | b).unwrap_or_default();
+    controlled |= our_pieces.rooks.piece_indices().map(|from| magic::rook_moves(from as usize, all_pieces)).reduce(|a, b| a | b).unwrap_or_default();
+    controlled |= our_pieces.pawns.piece_indices().map(|from| magic::pawn_attacks(from as usize, color)).reduce(|a, b| a | b).unwrap_or_default();
 
     controlled
 }
