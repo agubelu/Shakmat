@@ -57,14 +57,15 @@ impl TurnInfo {
         Self {
             turn_number: board.turn_number(),
             color: board.turn_color(),
-            moves: board.get_current_turn_moves(),
-            in_check: board.is_in_check(board.turn_color())
+            moves: board.legal_moves(),
+            in_check: board.is_check(board.turn_color())
         }
     }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Structs for deserializing stuff sent by the clients
+
 #[derive(Debug, Deserialize)]
 pub struct FenData {
     pub fen: String
@@ -72,7 +73,7 @@ pub struct FenData {
 
 #[derive(Debug, Deserialize)]
 pub struct MoveData {
-    pub r#move: Move,
+    pub r#move: String,
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -68,13 +68,13 @@ impl Display for Move {
     }
 }
 
-/*
 // Custom serialization and deserialization, following the previous formatting
 impl Serialize for Move {
     fn serialize<S: Serializer>(&self, serializer: S) -> StdResult<S::Ok, S::Error> {
         serializer.serialize_str(&self.to_string())
     }
 }
+/*
 
 impl<'a> Deserialize<'a> for Move {
     fn deserialize<D: Deserializer<'a>>(deserializer: D) -> StdResult<Self, D::Error> {

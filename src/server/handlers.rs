@@ -45,11 +45,16 @@ pub fn get_turn_info(state: &StateMutex, game_id: &str) -> ApiResponse {
 pub fn make_move(state: &StateMutex, game_id: &str, r#move: Json<MoveData>) -> ApiResponse {
     let mut state_lock = state.inner().lock().unwrap();
 
-    match state_lock.make_move(game_id, r#move.r#move) {
-        None => ApiResponse::not_found("Game not found".to_owned()),
-        Some(res) => match res {
-            Ok(()) => ApiResponse::turn_info(state_lock.get_turn_info(game_id).unwrap()),
-            Err(msg) => ApiResponse::bad_request(msg),
+    let mv = match state_lock.get_game_moves(game_id) {
+        None => return ApiResponse::not_found("Game not found".to_owned()),
+        Some(map) => match map.get(&r#move.r#move.to_lowercase()) {
+            Some(movement) => *movement,
+            None => return ApiResponse::bad_request("Illegal move".to_owned()),
         }
+    };
+
+    match state_lock.make_move(game_id, mv) {
+        Ok(()) => ApiResponse::turn_info(state_lock.get_turn_info(game_id).unwrap()),
+        Err(msg) => ApiResponse::bad_request(msg),
     }
 }
