@@ -1,5 +1,5 @@
 use std::fmt::{Display, Formatter};
-use rocket::serde::{Serialize, Deserialize, Serializer, Deserializer};
+use rocket::serde::{Serialize, Serializer};
 
 use super::{PieceType, Square};
 

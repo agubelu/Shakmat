@@ -40,6 +40,10 @@ impl ApiResponse {
     pub fn turn_info(turn_info: TurnInfo) -> Self {
         Self { status: Status::Ok, payload: json!({"turn_info": turn_info}) }
     }
+
+    pub fn move_suggestion(mv: &Move) -> Self {
+        Self { status: Status::Ok, payload: json!({"move": mv.to_string()}) }
+    }
 }
 
 // Info for the current turn
@@ -71,7 +75,7 @@ pub struct FenData {
     pub fen: String
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct MoveData {
     pub r#move: String,
 }

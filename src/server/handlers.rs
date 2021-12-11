@@ -4,11 +4,13 @@ use rocket::{Route, State};
 
 use super::messages::{ApiResponse, FenData, MoveData};
 use super::state::ServerState;
+use std::mem::drop;
+use rand::prelude::*;
 
 type StateMutex = State<Mutex<ServerState>>;
 
 pub fn get_routes() -> Vec<Route> {
-    routes![create_game, get_turn_info, make_move]
+    routes![create_game, get_turn_info, make_move, get_computer_move]
 }
 
 #[post("/games", data = "<fen>")]
@@ -56,5 +58,22 @@ pub fn make_move(state: &StateMutex, game_id: &str, r#move: Json<MoveData>) -> A
     match state_lock.make_move(game_id, mv) {
         Ok(()) => ApiResponse::turn_info(state_lock.get_turn_info(game_id).unwrap()),
         Err(msg) => ApiResponse::bad_request(msg),
+    }
+}
+
+#[get("/games/<game_id>/move_suggestion")]
+pub fn get_computer_move(state: &StateMutex, game_id: &str) -> ApiResponse {
+    let state_lock = state.inner().lock().unwrap();
+    let board = match state_lock.get_board(game_id) {
+        Some(board) => *board,
+        None => return ApiResponse::not_found("Game not found".to_owned()),
+    };
+    drop(state_lock);
+
+    let mut rng = thread_rng();
+    let moves = board.legal_moves();
+    match moves.choose(&mut rng) {
+        Some(mv) => ApiResponse::move_suggestion(mv),
+        None => ApiResponse::bad_request("No moves available".to_owned()),
     }
 }

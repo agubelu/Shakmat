@@ -22,6 +22,7 @@ impl ServerState {
         self.update_game_moves(&key);
         key
     }
+
     
     pub fn create_game_from_fen(&mut self, fen: &str) -> Result<String, String> {
         let key = random_string(KEY_LENGTH);
@@ -29,15 +30,19 @@ impl ServerState {
         self.update_game_moves(&key);
         Ok(key)
     }
-
+    
     pub fn get_turn_info(&self, key: &str) -> Option<TurnInfo> {
         self.games.get(key).map(|board| TurnInfo::from_board(board))
+    }
+    
+    pub fn get_board(&self, key: &str) -> Option<&Board> {
+        self.games.get(key)
     }
 
     pub fn get_game_moves(&self, key: &str) -> Option<&HashMap<String, Move>> {
         self.moves.get(key)
     }
-
+    
     // It is assumed that the move will always be legal, as the handler
     // will refuse to make it if it is not in the moves map for the board,
     // and that the key always exists
