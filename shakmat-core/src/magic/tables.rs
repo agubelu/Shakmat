@@ -1,6 +1,6 @@
 #![allow(clippy::all)]
 
-use crate::chess::BitBoard;
+use crate::board::BitBoard;
 
 pub static BLACK_PAWN_PUSHES: [BitBoard; 64] = [
     BitBoard::new(0),

@@ -1,8 +1,7 @@
 use std::ops::Not;
-use rocket::serde::Serialize;
+use serde::Serialize;
 
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize)]
 pub enum Color {
     White,
     Black,

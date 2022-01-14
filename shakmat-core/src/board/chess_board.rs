@@ -2,15 +2,12 @@ use std::fmt::Display;
 use std::result::Result;
 use rayon::prelude::*;
 
-use crate::chess::{CastlingRights, Color, PieceType, BitBoard, Move};
-use crate::chess::fen::{read_fen, DEFAULT_FEN};
-use crate::chess::Color::*;
-use crate::chess::PieceType::*;
+use crate::game_elements::{CastlingRights, Color, Color::*, PieceType, PieceType::*, Move, Square};
+use crate::board::BitBoard;
+use crate::fen::{read_fen, DEFAULT_FEN};
 use super::movegen;
 
-use super::super::position::Square;
-
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Board {
     castling_rights: CastlingRights,
     turn: Color,
@@ -26,7 +23,7 @@ pub struct Board {
     white_attacks: BitBoard,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Pieces {
     pub pawns: BitBoard,
     pub rooks: BitBoard,
@@ -155,7 +152,7 @@ impl Board {
         }
     }
 
-    pub fn perft(&self, depth: u16) -> u64 {
+    pub fn perft(&self, depth: usize) -> u64 {
         self._perft(depth, true)
     }
 
@@ -303,7 +300,7 @@ impl Board {
         }
     }
 
-    fn _perft(&self, depth: u16, multithread: bool) -> u64 {
+    fn _perft(&self, depth: usize, multithread: bool) -> u64 {
         if depth == 1 {
             return self.legal_moves().len() as u64
         }

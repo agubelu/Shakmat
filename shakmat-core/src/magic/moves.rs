@@ -1,4 +1,6 @@
-use crate::chess::{BitBoard, Color};
+use crate::board::BitBoard;
+use crate::game_elements::Color;
+
 use super::masks::{BISHOP_BLOCKERS_MASK, ROOK_BLOCKERS_MASK};
 use super::magics::{BISHOP_MAGICS, BISHOP_OFFSETS, BISHOP_SHIFTS, ROOK_MAGICS, ROOK_OFFSETS, ROOK_SHIFTS};
 use super::tables::{BISHOP_MOVES, ROOK_MOVES, KING_MOVES, KNIGHT_MOVES, BLACK_PAWN_ATTACKS,

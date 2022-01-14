@@ -1,0 +1,9 @@
+[package]
+name = "shakmat-engine"
+version = "0.1.0"
+edition = "2021"
+authors = ["https://github.com/agubelu/"]
+
+[dependencies]
+shakmat-core = { path = "../shakmat-core" }
+rand = "0.8.4"

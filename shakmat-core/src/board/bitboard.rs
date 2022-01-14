@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::ops::{BitAnd, BitOr, BitOrAssign, BitAndAssign, BitXorAssign, Not, Shl, Shr};
 use std::cmp::PartialEq;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct BitBoard {
     bb: u64
 }

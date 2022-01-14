@@ -1,0 +1,12 @@
+[package]
+name = "shakmat-server"
+version = "0.1.0"
+edition = "2021"
+authors = ["https://github.com/agubelu/"]
+
+[dependencies]
+rand = "0.8.4"
+rocket = { version = "0.5.0-rc.1", features = ["json"] }
+serde = { version = "1.0.130", features = ["derive"] }
+shakmat-core = { path = "../shakmat-core" }
+shakmat-engine = { path = "../shakmat-engine" }

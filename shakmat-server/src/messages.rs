@@ -6,7 +6,7 @@ use rocket::response;
 use rocket::response::{Responder, Response};
 use rocket::request::Request;
 
-use crate::chess::{Move, Color, Board};
+use shakmat_core::{Move, Color, Board};
 
 // Generic API response with an arbitraty HTTP status code and json payload
 // kudos to https://stackoverflow.com/a/54867136
@@ -47,7 +47,7 @@ impl ApiResponse {
 }
 
 // Info for the current turn
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 #[serde(rename = "turn_info")]
 pub struct TurnInfo {
     turn_number: u16,
@@ -70,12 +70,12 @@ impl TurnInfo {
 ///////////////////////////////////////////////////////////////////////////////
 /// Structs for deserializing stuff sent by the clients
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub struct FenData {
     pub fen: String
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Deserialize, Serialize)]
 pub struct MoveData {
     pub r#move: String,
 }

@@ -1,11 +1,12 @@
 use std::sync::Mutex;
+use std::mem::drop;
+
 use rocket::serde::json::Json;
 use rocket::{Route, State};
+use shakmat_engine::find_best_move;
 
-use super::messages::{ApiResponse, FenData, MoveData};
-use super::state::ServerState;
-use std::mem::drop;
-use rand::prelude::*;
+use crate::messages::{ApiResponse, FenData, MoveData};
+use crate::state::ServerState;
 
 type StateMutex = State<Mutex<ServerState>>;
 
@@ -68,12 +69,13 @@ pub fn get_computer_move(state: &StateMutex, game_id: &str) -> ApiResponse {
         Some(board) => *board,
         None => return ApiResponse::not_found("Game not found".to_owned()),
     };
+
+    // We drop the lock here so the rather slow process of finding the best
+    // move doesn't block all othe requests
     drop(state_lock);
 
-    let mut rng = thread_rng();
-    let moves = board.legal_moves();
-    match moves.choose(&mut rng) {
-        Some(mv) => ApiResponse::move_suggestion(mv),
+    match find_best_move(&board) {
+        Some(mv) => ApiResponse::move_suggestion(&mv),
         None => ApiResponse::bad_request("No moves available".to_owned()),
     }
 }

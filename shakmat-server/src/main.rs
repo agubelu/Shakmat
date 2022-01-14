@@ -1,10 +1,10 @@
 #[macro_use] extern crate rocket;
 
-mod chess;
-mod server;
+mod handlers;
+mod state;
+mod messages;
 
-use server::state::ServerState;
-use server::handlers;
+use state::ServerState;
 use std::sync::Mutex;
 
 #[launch]

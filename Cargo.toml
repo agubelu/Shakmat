@@ -1,12 +1,9 @@
-[package]
-name = "cbt"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+members = [
+    "shakmat-core",
+    "shakmat-engine",
+    "shakmat-server",
+]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-rand = "0.8.4"
-rayon = "1.5.1"
-rocket = { version = "0.5.0-rc.1", features = ["json"] }
-serde = { version = "1.0.130", features = ["derive"] }
+[profile.test]
+opt-level = 3 

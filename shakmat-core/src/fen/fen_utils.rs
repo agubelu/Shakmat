@@ -1,8 +1,7 @@
 use std::result::Result;
 
-use super::super::board::Pieces;
-use crate::chess::{Color, CastlingRights, BitBoard, Square};
-use crate::chess::{Color::*, PieceType::*};
+use crate::board::{BitBoard, Pieces};
+use crate::game_elements::{Color::*, PieceType::*, CastlingRights, Color, Square};
 
 pub const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 

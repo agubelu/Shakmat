@@ -1,0 +1,9 @@
+[package]
+name = "shakmat-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["https://github.com/agubelu/"]
+
+[dependencies]
+rayon = "1.5.1"
+serde = { version = "1.0.130", features = ["derive"] }

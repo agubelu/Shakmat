@@ -1,4 +1,4 @@
-use crate::chess::{Board, Move};
+use shakmat_core::{Board, Move};
 use super::messages::TurnInfo;
 
 use rand::Rng;

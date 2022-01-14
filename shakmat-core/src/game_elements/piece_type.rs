@@ -1,8 +1,7 @@
-use crate::chess::Color;
-use crate::chess::Color::*;
+use crate::game_elements::{Color, Color::*};
 use PieceType::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum PieceType {
     Pawn,
     Knight,

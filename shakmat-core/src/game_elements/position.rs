@@ -1,10 +1,10 @@
 use std::fmt::{Display, Formatter};
 use std::result::Result;
-use crate::chess::BitBoard;
+use crate::board::BitBoard;
 
 type FmtResult = std::fmt::Result;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Square {
     square: u8,
 }

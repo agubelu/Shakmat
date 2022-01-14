@@ -1,3 +1,5 @@
-# Chess BoT
+# Shakmat
 
-Work in progress, name is temporary (or maybe not)
+Shakmat (approx. transliteration of Russian шахмат, *checkmate*) is a chess engine with a built-in JSON API to interact with.
+
+Work in progress.

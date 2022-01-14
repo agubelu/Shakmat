@@ -1,8 +1,6 @@
-use crate::chess::{Move, Board, Color, PieceType, BitBoard};
-use Color::*;
-use PieceType::*;
-
-use crate::chess::magic;
+use crate::board::{Board, BitBoard};
+use crate::game_elements::{Color, Color::*, PieceType::*, Move};
+use crate::magic;
 
 // Bitboards that have 1's in the required spaces to castle for
 // both colors, and those that must not be in check to castle

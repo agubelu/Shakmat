@@ -1,6 +1,6 @@
 use super::Color;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct CastlingRights {
     pub white_kingside: bool,
     pub white_queenside: bool,
