@@ -5,3 +5,4 @@ mod magic;
 
 pub use board::Board;
 pub use game_elements::{Move, Color};
+pub use fen::DEFAULT_FEN;
