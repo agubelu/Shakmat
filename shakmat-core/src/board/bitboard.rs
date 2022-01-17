@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::ops::{BitAnd, BitOr, BitOrAssign, BitAndAssign, BitXorAssign, Not, Shl, Shr};
 use std::cmp::PartialEq;
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Default)]
 pub struct BitBoard {
     bb: u64
 }
@@ -140,11 +140,5 @@ impl Not for BitBoard {
 
     fn not(self) -> Self::Output {
         Self::new(!self.bb)
-    }
-}
-
-impl Default for BitBoard {
-    fn default() -> Self {
-        Self::new(0)
     }
 }

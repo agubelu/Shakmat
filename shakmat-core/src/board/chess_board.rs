@@ -23,7 +23,7 @@ pub struct Board {
     white_attacks: BitBoard,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct Pieces {
     pub pawns: BitBoard,
     pub rooks: BitBoard,
@@ -410,18 +410,5 @@ impl Pieces {
         self.rooks &= mask;
         self.queens &= mask;
         self.king &= mask;
-    }
-}
-
-impl Default for Pieces {
-    fn default() -> Self {
-        Self {
-            pawns: BitBoard::default(),
-            rooks: BitBoard::default(),
-            knights: BitBoard::default(),
-            bishops: BitBoard::default(),
-            queens: BitBoard::default(),
-            king: BitBoard::default(),
-        }
     }
 }
