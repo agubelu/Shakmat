@@ -39,6 +39,10 @@ impl BitBoard {
     pub fn piece_indices(&self) -> PieceIndexIter {
         PieceIndexIter { value: self.bb }
     }
+
+    pub fn count(&self) -> u32 {
+        self.bb.count_ones()
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
