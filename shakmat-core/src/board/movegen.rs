@@ -23,7 +23,58 @@ pub fn get_pseudolegal_moves(board: &Board, color: Color) -> Vec<Move> {
     let friendly_pieces_mask = !board.get_color_bitboard(color);
     let all_pieces = board.get_all_bitboard();
 
-    // Ah yes, pawns. The funniest of pieces.
+    // Queen
+    pieces.queens.piece_indices().for_each(|from| {
+        let move_bb = magic::queen_moves(from as usize, all_pieces) & friendly_pieces_mask;
+        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, piece: Queen, ep: false }));
+    });
+
+    // Rook
+    pieces.rooks.piece_indices().for_each(|from| {
+        let move_bb = magic::rook_moves(from as usize, all_pieces) & friendly_pieces_mask;
+        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, piece: Rook, ep: false }));
+    });
+
+    // Bishop
+    pieces.bishops.piece_indices().for_each(|from| {
+        let move_bb = magic::bishop_moves(from as usize, all_pieces) & friendly_pieces_mask;
+        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, piece: Bishop, ep: false }));
+    });
+
+    // Horsey
+    pieces.knights.piece_indices().for_each(|from| {
+        let move_bb = magic::knight_moves(from as usize) & friendly_pieces_mask;
+        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, piece: Knight, ep: false }));
+    });
+
+    // King
+    // First, the simple 1-square moves
+    pieces.king.piece_indices().for_each(|from| {
+        let move_bb = magic::king_moves(from as usize) & friendly_pieces_mask;
+        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, piece: King, ep: false }));
+    });
+
+    // Next, castling. Legality check of castling is done here too
+    let (short_bb, long_bb, short_checks, long_checks) = match color {
+        White => (WHITE_SHORT_CASTLE_BB, WHITE_LONG_CASTLE_BB,
+                  WHITE_SHORT_CASTLE_CHECKS, WHITE_LONG_CASTLE_CHECKS),
+        Black => (BLACK_SHORT_CASTLE_BB, BLACK_LONG_CASTLE_BB,
+                  BLACK_SHORT_CASTLE_CHECKS, BLACK_LONG_CASTLE_CHECKS),
+    };
+
+    let attackers = board.get_attack_bitboard(!color);
+
+    if board.castling_info().can_castle_kingside(color) && (all_pieces & short_bb).is_empty()
+        && (attackers & short_checks).is_empty()  {
+        moves.push(Move::ShortCastle);
+    }
+
+    if board.castling_info().can_castle_queenside(color) && (all_pieces & long_bb).is_empty()
+        && (attackers & long_checks).is_empty() {
+        moves.push(Move::LongCastle);
+    }
+
+    // Finally, pawns. The funniest of pieces.
     // We need an aux vec to later transform the moves that end up in the
     // last rank to promotion moves
     let mut pawn_moves = Vec::with_capacity(50);
@@ -62,57 +113,6 @@ pub fn get_pseudolegal_moves(board: &Board, color: Color) -> Vec<Move> {
             vec![mv].into_iter()
         }
     }));
-
-    // Rook
-    pieces.rooks.piece_indices().for_each(|from| {
-        let move_bb = magic::rook_moves(from as usize, all_pieces) & friendly_pieces_mask;
-        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, piece: Rook, ep: false }));
-    });
-
-    // Bishop
-    pieces.bishops.piece_indices().for_each(|from| {
-        let move_bb = magic::bishop_moves(from as usize, all_pieces) & friendly_pieces_mask;
-        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, piece: Bishop, ep: false }));
-    });
-
-    // Queen
-    pieces.queens.piece_indices().for_each(|from| {
-        let move_bb = magic::queen_moves(from as usize, all_pieces) & friendly_pieces_mask;
-        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, piece: Queen, ep: false }));
-    });
-
-    // Horsey
-    pieces.knights.piece_indices().for_each(|from| {
-        let move_bb = magic::knight_moves(from as usize) & friendly_pieces_mask;
-        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, piece: Knight, ep: false }));
-    });
-
-    // King
-    // First, the simple 1-square moves
-    pieces.king.piece_indices().for_each(|from| {
-        let move_bb = magic::king_moves(from as usize) & friendly_pieces_mask;
-        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, piece: King, ep: false }));
-    });
-
-    // Next, castling. Legality check of castling is done here too
-    let (short_bb, long_bb, short_checks, long_checks) = match color {
-        White => (WHITE_SHORT_CASTLE_BB, WHITE_LONG_CASTLE_BB,
-                  WHITE_SHORT_CASTLE_CHECKS, WHITE_LONG_CASTLE_CHECKS),
-        Black => (BLACK_SHORT_CASTLE_BB, BLACK_LONG_CASTLE_BB,
-                  BLACK_SHORT_CASTLE_CHECKS, BLACK_LONG_CASTLE_CHECKS),
-    };
-
-    let attackers = board.get_attack_bitboard(!color);
-
-    if board.castling_info().can_castle_kingside(color) && (all_pieces & short_bb).is_empty()
-        && (attackers & short_checks).is_empty()  {
-        moves.push(Move::ShortCastle);
-    }
-
-    if board.castling_info().can_castle_queenside(color) && (all_pieces & long_bb).is_empty()
-        && (attackers & long_checks).is_empty() {
-        moves.push(Move::LongCastle);
-    }
 
     moves
 }

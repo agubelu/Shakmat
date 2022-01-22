@@ -1,20 +1,9 @@
-use shakmat_core::{Board, Color::*, Color, Move};
+use shakmat_core::{Board, Color::*, Color};
 
 // Evaluate how favorable a position is for Black or White
 // Positive scores favor White, while negative scores favor Black
 // The maximum or minimum possible score denotes a checkmate
-pub fn evaluate_position(board: &Board, moves: &[Move]) -> i32 {
-    let color_to_play = board.turn_color();
-    if moves.is_empty() {
-        let eval = if board.is_check(color_to_play) {
-            if color_to_play == White {i32::MIN} else {i32::MAX}
-        } else {
-            0
-        };
-
-        return eval;
-    }
-
+pub fn evaluate_position(board: &Board) -> i32 {
     piece_score(board, White) - piece_score(board, Black)
     + control_score(board, White) - control_score(board, Black)
 }

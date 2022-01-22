@@ -63,8 +63,9 @@ impl Board {
             // Even though we generate all the moves just to check, this is only
             // done for user-provided moves. The moves made by the engine when
             // it is analyzing a position bypass this check
-            
-            // TODO
+            if !self.legal_moves().contains(movement) {
+                return Err("Illegal move".to_owned())
+            }
         }
         // Copy the current board and make the changes on it
         let mut new_board = *self;
