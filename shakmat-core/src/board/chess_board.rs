@@ -75,7 +75,7 @@ impl Board {
             new_board.castle(movement);
             // Castling calls move_piece twice, so the half-turn counter for
             // the 50 move rule is updated twice, that's why we must substract 1
-            new_board.half_turns_til_50move_draw -= 1;
+            new_board.half_turns_til_50move_draw += 1;
         } else {
             new_board.move_piece(movement);
         }
@@ -94,7 +94,11 @@ impl Board {
     }
 
     pub fn pseudolegal_moves(&self) -> Vec<Move> {
-        movegen::get_pseudolegal_moves(self, self.turn_color())
+        if self.half_turns_til_50move_draw == 0 {
+            vec![]
+        } else {
+            movegen::get_pseudolegal_moves(self, self.turn_color())
+        }
     }
 
     pub fn legal_moves(&self) -> Vec<Move> {
@@ -199,9 +203,9 @@ impl Board {
 
         // Update the counter towards the 50 move rule
         if is_capture || movement.piece_type() == Pawn {
-            self.half_turns_til_50move_draw = 0;
+            self.half_turns_til_50move_draw = 100;
         } else {
-            self.half_turns_til_50move_draw += 1;
+            self.half_turns_til_50move_draw -= 1;
         }
 
         // Update castling rights
