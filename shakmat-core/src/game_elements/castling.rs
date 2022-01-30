@@ -33,6 +33,13 @@ impl CastlingRights {
         Self::new(false, false, false, false)
     }
 
+    pub const fn to_index(&self) -> usize {
+        (self.white_kingside as usize) << 3 |
+        (self.white_queenside as usize) << 2 |
+        (self.black_kingside as usize) << 1 |
+        (self.black_queenside as usize)
+    }
+
     pub fn update_kingside(&mut self, color: Color, can_castle: bool) {
         match color {
             Color::White => self.white_kingside = can_castle,
@@ -66,7 +73,6 @@ impl CastlingRights {
             Color::Black => self.black_kingside,
         }
     }
-
 
     pub fn can_castle_queenside(&self, color: Color) -> bool {
         match color {

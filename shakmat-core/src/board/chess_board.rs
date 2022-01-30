@@ -5,6 +5,7 @@ use rayon::prelude::*;
 use crate::game_elements::{CastlingRights, Color, Color::*, PieceType, PieceType::*, Move, Square};
 use crate::board::BitBoard;
 use crate::fen::{read_fen, DEFAULT_FEN};
+use crate::zobrist;
 use super::movegen;
 
 #[derive(Clone, Copy)]
@@ -19,8 +20,10 @@ pub struct Board {
     all_whites: BitBoard,
     all_blacks: BitBoard,
     all_pieces: BitBoard,
+    piece_on_square: [Option<PieceType>; 64],
     black_attacks: BitBoard,
     white_attacks: BitBoard,
+    zobrist_key: u64,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -48,11 +51,14 @@ impl Board {
             all_whites: BitBoard::default(),
             all_blacks: BitBoard::default(),
             all_pieces: BitBoard::default(),
+            piece_on_square: fen_info.piece_on_square,
             black_attacks: BitBoard::default(),
-            white_attacks: BitBoard::default(), 
+            white_attacks: BitBoard::default(),
+            zobrist_key: 0,
         };
 
         board.update_aux_bitboards();
+        board.create_zobrist_key();
         Ok(board)
     }
 
@@ -85,6 +91,8 @@ impl Board {
         // Update the current color to play and the number of total turns,
         // if black just moved
         new_board.turn = !self.turn;
+        new_board.zobrist_key ^= zobrist::get_key_black_turn();
+
         if new_board.turn == White {
             new_board.full_turns += 1;
         }
@@ -132,6 +140,10 @@ impl Board {
         self.turn
     }
 
+    pub fn zobrist_key(&self) -> u64 {
+        self.zobrist_key
+    }
+
     pub fn get_pieces(&self, color: Color) -> &Pieces {
         match color {
             White => &self.white_pieces,
@@ -175,7 +187,7 @@ impl Board {
         let (moving_color, enemy_color) = (self.turn_color(), !self.turn_color());
         let enemy_pieces = self.get_color_bitboard(enemy_color);
 
-        let mut is_capture = false;
+        let mut captured_piece = None;
 
         // If there is a piece in the destination square, remove it
         // First check for e.p., where the square we must remove is different
@@ -184,32 +196,51 @@ impl Board {
                 White => movement.to() - 8,
                 Black => movement.to() + 8,
             };
+
+            // Remove the pawn that was captured e.p.
             let target_bb = BitBoard::from_square(target_ep);
             *self.get_pieces_mut(enemy_color).get_pieces_of_type_mut(Pawn) ^= target_bb;
-            is_capture = true;
+            *self.piece_on_mut(target_ep) = None;
+        
+            // The type of the captured piece is not really needed here, since it's always a pawn
+            captured_piece = Some(Pawn);
+            // Update the zobrist key removing the captured pawn
+            self.zobrist_key ^= zobrist::get_key_for_piece(Pawn, enemy_color, target_ep);
+            
         } else if !(enemy_pieces & to_bb).is_empty() {
             self.get_pieces_mut(enemy_color).apply_mask(!to_bb);
-            is_capture = true;
+            captured_piece = *self.piece_on(movement.to());
+            // Update the zobrist key (no need to update piece_on_square since it'll be overwritten)
+            self.zobrist_key ^= zobrist::get_key_for_piece(captured_piece.unwrap(), enemy_color, movement.to());
         }
 
         // Move the piece, depending on whether this is a pawn promotion or not
+        self.zobrist_key ^= zobrist::get_key_for_piece(movement.piece_type(), moving_color, movement.from());
+        *self.piece_on_mut(movement.from()) = None;
         let our_pieces = self.get_pieces_mut(moving_color);
+
         if let Move::PawnPromotion { promote_to, ..} = movement {
             *our_pieces.get_pieces_of_type_mut(Pawn) ^= from_bb;
             *our_pieces.get_pieces_of_type_mut(*promote_to) ^= to_bb;
+            self.zobrist_key ^= zobrist::get_key_for_piece(*promote_to, moving_color, movement.to());
+            *self.piece_on_mut(movement.to()) = Some(*promote_to);
         } else {
             *our_pieces.get_pieces_of_type_mut(movement.piece_type()) ^= from_bb | to_bb;
+            self.zobrist_key ^= zobrist::get_key_for_piece(movement.piece_type(), moving_color, movement.to());
+            *self.piece_on_mut(movement.to()) = Some(movement.piece_type());
         }
 
         // Update the counter towards the 50 move rule
-        if is_capture || movement.piece_type() == Pawn {
+        if captured_piece.is_some() || movement.piece_type() == Pawn {
             self.half_turns_til_50move_draw = 100;
         } else {
             self.half_turns_til_50move_draw -= 1;
         }
 
         // Update castling rights
+        self.zobrist_key ^= zobrist::get_key_castling(self.castling_info());
         self.update_castling_rights(movement);
+        self.zobrist_key ^= zobrist::get_key_castling(self.castling_info());
     }
 
     fn castle(&mut self, movement: &Move) {
@@ -234,23 +265,28 @@ impl Board {
     }
 
     fn update_en_passant(&mut self, movement: &Move) {
-        match movement {
-            Move::Normal {piece: Pawn, from, to, ep: false } => {
-                // This is done *before* the color is updated, hence,
-                // the current turn is the one that played the move
-                // Pawns move in increments (white) or decrements (black) of
-                // 8, so we can use that to detect if it's a double push
-                let color = self.turn_color();
-                if color == White && to - from == 16 {
-                    self.en_passant_target = BitBoard::from_square(*from + 8);
-                } else if color == Black && from - to == 16 {
-                    self.en_passant_target = BitBoard::from_square(*from - 8);
-                } else {
-                    self.en_passant_target.clear();
-                }
-            },
-            _ => self.en_passant_target.clear(),
-        };
+        // If there is one active e.p. square, remove it from the zobrist key
+        if !self.en_passant_target.is_empty() {
+            self.zobrist_key ^= zobrist::get_key_ep_square(self.ep_square().piece_indices().next().unwrap());
+        }
+
+        // Remove the e.p. square
+        self.en_passant_target.clear();
+
+        if let Move::Normal {piece: Pawn, ep: false, from, to} = movement {
+            // This is done *before* the color is updated, hence,
+            // the current turn is the one that played the move
+            // Pawns move in increments (white) or decrements (black) of
+            // 8, so we can use that to detect if it's a double push
+            let color = self.turn_color();
+            if color == White && to - from == 16 {
+                self.en_passant_target = BitBoard::from_square(*from + 8);
+                self.zobrist_key ^= zobrist::get_key_ep_square(*from + 8);
+            } else if color == Black && from - to == 16 {
+                self.en_passant_target = BitBoard::from_square(*from - 8);
+                self.zobrist_key ^= zobrist::get_key_ep_square(*from - 8);
+            }
+        }
     }
 
     fn update_castling_rights(&mut self, movement: &Move) {
@@ -298,11 +334,48 @@ impl Board {
         self.black_attacks = movegen::get_controlled_squares(self, Black);
     }
 
-    pub fn get_pieces_mut(&mut self, color: Color) -> &mut Pieces {
+    fn create_zobrist_key(&mut self) {
+        // Creates the zobrist key for this board from scratch, assuming that
+        // the initial value is 0. This should only be called once, when
+        // the board is created. Incremental updates are done by the corresponding
+        // move-related methods.
+
+        // First, the pieces
+        for color in [Black, White] {
+            for piece_type in [King, Queen, Bishop, Knight, Rook, Pawn] {
+                self.get_pieces(color).get_pieces_of_type(piece_type)
+                    .piece_indices()
+                    .for_each(|sq| self.zobrist_key ^= zobrist::get_key_for_piece(piece_type, color, sq));
+            }
+        }
+
+        // Then, castling rights
+        self.zobrist_key ^= zobrist::get_key_castling(self.castling_info());
+
+        // e.p. square, if it's set...
+        if !self.ep_square().is_empty() {
+            self.zobrist_key ^= zobrist::get_key_ep_square(self.ep_square().piece_indices().next().unwrap())
+        }
+
+        //...finally, black's turn
+        if self.turn_color() == Black {
+            self.zobrist_key ^= zobrist::get_key_black_turn();
+        }
+    }
+
+    fn get_pieces_mut(&mut self, color: Color) -> &mut Pieces {
         match color {
             White => &mut self.white_pieces,
             Black => &mut self.black_pieces
         }
+    }
+
+    fn piece_on(&self, square: u8) -> &Option<PieceType> {
+        &self.piece_on_square[square as usize]
+    }
+
+    fn piece_on_mut(&mut self, square: u8) -> &mut Option<PieceType> {
+        &mut self.piece_on_square[square as usize]
     }
 
     fn _perft(&self, depth: usize, multithread: bool) -> u64 {
@@ -342,7 +415,6 @@ impl Default for Board {
 }
 
 impl Display for Board {
-
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // Dump the pieces from the bitboards into an 8x8 array
         let mut pieces: [[Option<char>; 8]; 8] = [[None; 8]; 8];

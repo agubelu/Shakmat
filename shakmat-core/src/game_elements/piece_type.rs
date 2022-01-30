@@ -12,6 +12,16 @@ pub enum PieceType {
 }
 
 impl PieceType {
+    pub const fn to_index(&self) -> usize {
+        match self {
+            Pawn => 0,
+            Knight => 1,
+            Bishop => 2,
+            Rook => 3,
+            Queen => 4,
+            King => 5,
+        }
+    }
     pub fn as_char(&self, color: Color) -> char {
         match (color, self) {
             (White, Pawn) => '♙',

@@ -7,6 +7,15 @@ pub enum Color {
     Black,
 }
 
+impl Color {
+    pub const fn to_index(&self) -> usize {
+        match self {
+            Self::White => 0,
+            Self::Black => 1,
+        }
+    }
+}
+
 impl Not for Color {
     type Output = Color;
 

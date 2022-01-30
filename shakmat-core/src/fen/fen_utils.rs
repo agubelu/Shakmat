@@ -1,5 +1,6 @@
 use std::result::Result;
 
+use crate::PieceType;
 use crate::board::{BitBoard, Pieces};
 use crate::game_elements::{Color::*, PieceType::*, CastlingRights, Color, Square};
 
@@ -12,7 +13,8 @@ pub struct FENInfo {
     pub halfmoves_since_capture: u16,
     pub fullmoves_since_start: u16,
     pub black_pieces: Pieces,
-    pub white_pieces: Pieces
+    pub white_pieces: Pieces,
+    pub piece_on_square: [Option<PieceType>; 64],
 }
 
 pub fn read_fen(fen: &str) -> Result<FENInfo, String> {
@@ -29,7 +31,8 @@ pub fn read_fen(fen: &str) -> Result<FENInfo, String> {
         halfmoves_since_capture: 0,
         fullmoves_since_start: 0,
         black_pieces: Pieces::default(),
-        white_pieces: Pieces::default()
+        white_pieces: Pieces::default(),
+        piece_on_square: [None; 64]
     };
 
     // Load the current board state, return an error if we find an unexpected character
@@ -97,6 +100,8 @@ fn load_board(board_info: &str, fen_info: &mut FENInfo) -> Result<(), String> {
                 };
 
                 *pieces.get_pieces_of_type_mut(piece) |= bb;
+                let square = bb.piece_indices().next().unwrap();
+                fen_info.piece_on_square[square as usize] = Some(piece);
 
                 file += 1;
             }
