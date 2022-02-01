@@ -1,5 +1,5 @@
 use std::mem::MaybeUninit;
-use crate::minimax::MiniMaxResult;
+use crate::search::MiniMaxResult;
 
 #[derive(Copy, Clone)]
 pub struct TTEntry {
