@@ -1,7 +1,10 @@
 mod evaluation;
 mod minimax;
+mod trasposition;
 
 use shakmat_core::{Board, Move};
+
+pub use trasposition::TTData;
 
 pub fn find_best_move(board: &Board) -> Option<Move> {
 
