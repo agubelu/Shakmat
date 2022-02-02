@@ -72,7 +72,7 @@ impl ServerState {
 fn random_string(length: u32) -> String {
     let charset: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                             abcdefghijklmnopqrstuvwxyz\
-                            0123456789-_";
+                            0123456789";
     let mut rng = rand::thread_rng();
     (0..length).map(|_| charset[rng.gen_range(0..charset.len())] as char).collect()
 }
