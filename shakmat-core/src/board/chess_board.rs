@@ -12,7 +12,7 @@ use super::movegen;
 pub struct Board {
     castling_rights: CastlingRights,
     turn: Color,
-    half_turns_til_50move_draw: u16,
+    fifty_move_rule_counter: u16,
     full_turns: u16,
     en_passant_target: BitBoard,
     white_pieces: Pieces,
@@ -44,7 +44,7 @@ impl Board {
             castling_rights: fen_info.castling_rights,
             turn: fen_info.turn,
             en_passant_target: fen_info.en_passant_square,
-            half_turns_til_50move_draw: 100 - fen_info.halfmoves_since_capture,
+            fifty_move_rule_counter: fen_info.halfmoves_since_capture,
             full_turns: fen_info.fullmoves_since_start,
             white_pieces: fen_info.white_pieces,
             black_pieces: fen_info.black_pieces,
@@ -81,7 +81,7 @@ impl Board {
             new_board.castle(movement);
             // Castling calls move_piece twice, so the half-turn counter for
             // the 50 move rule is updated twice, that's why we must substract 1
-            new_board.half_turns_til_50move_draw += 1;
+            new_board.fifty_move_rule_counter -= 1;
         } else {
             new_board.move_piece(movement);
         }
@@ -102,7 +102,7 @@ impl Board {
     }
 
     pub fn pseudolegal_moves(&self) -> Vec<Move> {
-        if self.half_turns_til_50move_draw == 0 {
+        if self.fifty_move_rule_counter == 100 {
             vec![]
         } else {
             movegen::get_pseudolegal_moves(self, self.turn_color())
@@ -142,6 +142,10 @@ impl Board {
 
     pub fn zobrist_key(&self) -> u64 {
         self.zobrist_key
+    }
+
+    pub fn fifty_move_rule_counter(&self) -> u16 {
+        self.fifty_move_rule_counter
     }
 
     pub fn get_pieces(&self, color: Color) -> &Pieces {
@@ -233,9 +237,9 @@ impl Board {
 
         // Update the counter towards the 50 move rule
         if captured_piece.is_some() || piece_moving == Pawn {
-            self.half_turns_til_50move_draw = 100;
+            self.fifty_move_rule_counter = 0;
         } else {
-            self.half_turns_til_50move_draw -= 1;
+            self.fifty_move_rule_counter += 1;
         }
 
         // Update castling rights
