@@ -26,32 +26,32 @@ pub fn get_pseudolegal_moves(board: &Board, color: Color) -> Vec<Move> {
     // Queen
     pieces.queens.piece_indices().for_each(|from| {
         let move_bb = magic::queen_moves(from as usize, all_pieces) & friendly_pieces_mask;
-        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, piece: Queen, ep: false }));
+        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, ep: false }));
     });
 
     // Rook
     pieces.rooks.piece_indices().for_each(|from| {
         let move_bb = magic::rook_moves(from as usize, all_pieces) & friendly_pieces_mask;
-        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, piece: Rook, ep: false }));
+        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, ep: false }));
     });
 
     // Bishop
     pieces.bishops.piece_indices().for_each(|from| {
         let move_bb = magic::bishop_moves(from as usize, all_pieces) & friendly_pieces_mask;
-        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, piece: Bishop, ep: false }));
+        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, ep: false }));
     });
 
     // Horsey
     pieces.knights.piece_indices().for_each(|from| {
         let move_bb = magic::knight_moves(from as usize) & friendly_pieces_mask;
-        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, piece: Knight, ep: false }));
+        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, ep: false }));
     });
 
     // King
     // First, the simple 1-square moves
     pieces.king.piece_indices().for_each(|from| {
         let move_bb = magic::king_moves(from as usize) & friendly_pieces_mask;
-        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, piece: King, ep: false }));
+        moves.extend(move_bb.piece_indices().map(|to| Move::Normal { from, to, ep: false }));
     });
 
     // Next, castling. Legality check of castling is done here too
@@ -83,7 +83,7 @@ pub fn get_pseudolegal_moves(board: &Board, color: Color) -> Vec<Move> {
     pieces.pawns.piece_indices().for_each(|from| {
         // Captures, which must target either an enemy piece or the e.p. square
         let cap_bb = magic::pawn_attacks(from as usize, color) & (enemy_pieces | ep_square);
-        pawn_moves.extend(cap_bb.piece_indices().map(|to| Move::Normal { from, to, piece: Pawn, ep: to == ep_index }));
+        pawn_moves.extend(cap_bb.piece_indices().map(|to| Move::Normal { from, to, ep: to == ep_index }));
 
         // Next, pushes. Going one step forward is always an option, if nothing is
         // in the way
@@ -97,7 +97,7 @@ pub fn get_pseudolegal_moves(board: &Board, color: Color) -> Vec<Move> {
             push_bb &= !((all_pieces & SIXTH_RANK_MASK) >> 8);
         }
 
-        pawn_moves.extend(push_bb.piece_indices().map(|to| Move::Normal { from, to, piece: Pawn, ep: false }));
+        pawn_moves.extend(push_bb.piece_indices().map(|to| Move::Normal { from, to, ep: false }));
     });
 
     // Transform the pawn moves into promotions if needed

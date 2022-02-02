@@ -1,5 +1,5 @@
 use std::mem::MaybeUninit;
-use super::TTEntry;
+use super::{TTEntry, TTData};
 
 // Operations with the trasposition table are unsafe, as it is intended for
 // lock-less multithreaded use, and data races will occur. It is up to us
@@ -19,13 +19,23 @@ impl TTable {
         Self { ptr: vec.as_mut_ptr(), _content: vec, size }
     }
 
-    pub unsafe fn get_entry(&self, key: u64) -> &MaybeUninit<TTEntry> {
-        let index = key as usize % self.size;
-        &*self.ptr.add(index)
+    pub fn get_entry(&self, zobrist_key: u64) -> Option<TTData> {
+        let index = zobrist_key as usize % self.size;
+        let entry = unsafe {
+            (*self.ptr.add(index)).assume_init()
+        };
+
+        if entry.zobrist() == zobrist_key {
+            unsafe { Some(entry.data().assume_init()) }
+        } else {
+            None
+        }
     }
 
-    pub unsafe fn write_entry(&self, key: u64, entry: TTEntry) {
-        let index = key as usize % self.size;
-        *self.ptr.add(index) = MaybeUninit::new(entry);
+    pub fn write_entry(&self, zobrist_key: u64, entry: TTEntry) {
+        let index = zobrist_key as usize % self.size;
+        unsafe {
+            *self.ptr.add(index) = MaybeUninit::new(entry);
+        }
     }
 }

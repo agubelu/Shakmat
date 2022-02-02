@@ -9,6 +9,6 @@ pub use trasposition::TTData;
 pub fn find_best_move(board: &Board) -> Option<Move> {
 
     let best = search::find_best(board, 6);
-    println!("Evaluation: {}", best.evaluation());
-    best.get_move()
+    println!("Evaluation: {}", best.eval);
+    best.best
 }

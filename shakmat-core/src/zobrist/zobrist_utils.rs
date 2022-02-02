@@ -38,7 +38,7 @@ pub fn get_key_for_piece(piece: PieceType, color: Color, square: u8) -> u64 {
 
 pub fn get_key_castling(cr: &CastlingRights) -> u64 {
     unsafe {
-        ZOBRIST_VALUES[768 + cr.to_index()]
+        ZOBRIST_VALUES[768 + cr.index()]
     }
 }
 

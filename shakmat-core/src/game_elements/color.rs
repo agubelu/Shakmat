@@ -8,10 +8,19 @@ pub enum Color {
 }
 
 impl Color {
+    // Used for zobrist keys
     pub const fn to_index(&self) -> usize {
         match self {
             Self::White => 0,
             Self::Black => 1,
+        }
+    }
+
+    // Used as a multiplier to swap the sign in score calculations
+    pub const fn sign(&self) -> i16 {
+        match self {
+            Self::White =>  1,
+            Self::Black => -1,
         }
     }
 }

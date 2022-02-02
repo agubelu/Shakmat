@@ -33,7 +33,7 @@ impl CastlingRights {
         Self::new(false, false, false, false)
     }
 
-    pub const fn to_index(&self) -> usize {
+    pub const fn index(&self) -> usize {
         (self.white_kingside as usize) << 3 |
         (self.white_queenside as usize) << 2 |
         (self.black_kingside as usize) << 1 |

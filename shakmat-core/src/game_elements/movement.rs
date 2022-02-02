@@ -9,7 +9,7 @@ type FmtResult = std::fmt::Result;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Move {
-    Normal { piece: PieceType, from: u8, to: u8, ep: bool},
+    Normal { from: u8, to: u8, ep: bool},
     PawnPromotion { from: u8, to: u8, promote_to: PieceType },
     ShortCastle,
     LongCastle
@@ -36,14 +36,6 @@ impl Move {
         match self {
             Self::Normal {ep, ..} => *ep,
             _ => false
-        }
-    }
-
-    pub fn piece_type(&self) -> PieceType {
-        match self {
-            Self::Normal { piece, .. } => *piece,
-            Self::PawnPromotion { .. } => PieceType::Pawn,
-            _ => unimplemented!()
         }
     }
 }

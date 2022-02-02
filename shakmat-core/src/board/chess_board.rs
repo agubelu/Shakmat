@@ -185,6 +185,7 @@ impl Board {
         let from_bb = BitBoard::from_square(movement.from());
         let to_bb = BitBoard::from_square(movement.to());
         let (moving_color, enemy_color) = (self.turn_color(), !self.turn_color());
+        let piece_moving = self.piece_on(movement.from()).unwrap();
         let enemy_pieces = self.get_color_bitboard(enemy_color);
 
         let mut captured_piece = None;
@@ -215,7 +216,7 @@ impl Board {
         }
 
         // Move the piece, depending on whether this is a pawn promotion or not
-        self.zobrist_key ^= zobrist::get_key_for_piece(movement.piece_type(), moving_color, movement.from());
+        self.zobrist_key ^= zobrist::get_key_for_piece(piece_moving, moving_color, movement.from());
         *self.piece_on_mut(movement.from()) = None;
         let our_pieces = self.get_pieces_mut(moving_color);
 
@@ -225,13 +226,13 @@ impl Board {
             self.zobrist_key ^= zobrist::get_key_for_piece(*promote_to, moving_color, movement.to());
             *self.piece_on_mut(movement.to()) = Some(*promote_to);
         } else {
-            *our_pieces.get_pieces_of_type_mut(movement.piece_type()) ^= from_bb | to_bb;
-            self.zobrist_key ^= zobrist::get_key_for_piece(movement.piece_type(), moving_color, movement.to());
-            *self.piece_on_mut(movement.to()) = Some(movement.piece_type());
+            *our_pieces.get_pieces_of_type_mut(piece_moving) ^= from_bb | to_bb;
+            self.zobrist_key ^= zobrist::get_key_for_piece(piece_moving, moving_color, movement.to());
+            *self.piece_on_mut(movement.to()) = Some(piece_moving);
         }
 
         // Update the counter towards the 50 move rule
-        if captured_piece.is_some() || movement.piece_type() == Pawn {
+        if captured_piece.is_some() || piece_moving == Pawn {
             self.half_turns_til_50move_draw = 100;
         } else {
             self.half_turns_til_50move_draw -= 1;
@@ -257,8 +258,8 @@ impl Board {
             (row_start + 3, row_start + 5, row_start + 7, row_start + 4)
         };
 
-        let king_move = Move::Normal { from: king_from, to: king_to, ep: false, piece: King};
-        let rook_move = Move::Normal { from: rook_from, to: rook_to, ep: false, piece: Rook};
+        let king_move = Move::Normal { from: king_from, to: king_to, ep: false };
+        let rook_move = Move::Normal { from: rook_from, to: rook_to, ep: false };
 
         self.move_piece(&king_move);
         self.move_piece(&rook_move);
@@ -273,18 +274,23 @@ impl Board {
         // Remove the e.p. square
         self.en_passant_target.clear();
 
-        if let Move::Normal {piece: Pawn, ep: false, from, to} = movement {
-            // This is done *before* the color is updated, hence,
-            // the current turn is the one that played the move
-            // Pawns move in increments (white) or decrements (black) of
-            // 8, so we can use that to detect if it's a double push
-            let color = self.turn_color();
-            if color == White && to - from == 16 {
-                self.en_passant_target = BitBoard::from_square(*from + 8);
-                self.zobrist_key ^= zobrist::get_key_ep_square(*from + 8);
-            } else if color == Black && from - to == 16 {
-                self.en_passant_target = BitBoard::from_square(*from - 8);
-                self.zobrist_key ^= zobrist::get_key_ep_square(*from - 8);
+        // If this is a pawn move, check if it's a double push to set the e.p. square
+        // Note: this runs after the piece has been moved, so the piece we are
+        // looking for is in the "to" position
+        if let Move::Normal {ep: false, from, to} = movement {
+            if self.piece_on(movement.to()) == &Some(Pawn) {
+                // This is done *before* the color is updated, hence,
+                // the current turn is the one that played the move
+                // Pawns move in increments (white) or decrements (black) of
+                // 8, so we can use that to detect if it's a double push
+                let color = self.turn_color();
+                if color == White && to - from == 16 {
+                    self.en_passant_target = BitBoard::from_square(*from + 8);
+                    self.zobrist_key ^= zobrist::get_key_ep_square(*from + 8);
+                } else if color == Black && from - to == 16 {
+                    self.en_passant_target = BitBoard::from_square(*from - 8);
+                    self.zobrist_key ^= zobrist::get_key_ep_square(*from - 8);
+                }
             }
         }
     }
@@ -314,7 +320,9 @@ impl Board {
         }
 
         // Check if we are moving our own king or one of our rooks
-        if movement.piece_type() == King {
+        // Note: this runs after the piece has been moved, so the piece we are
+        // looking for is in the "to" position
+        if self.piece_on(movement.to()) == &Some(King) {
             self.castling_rights.disable_all(color);
         } else if self.castling_rights.can_castle_queenside(color) && from == rook_positions.0.0 {
             self.castling_rights.update_queenside(color, false);
