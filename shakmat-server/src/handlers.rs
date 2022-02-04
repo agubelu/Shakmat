@@ -3,7 +3,6 @@ use std::mem::drop;
 
 use rocket::serde::json::Json;
 use rocket::{Route, State};
-use shakmat_engine;
 
 use crate::messages::{ApiResponse, FenData, MoveData};
 use crate::state::ServerState;
