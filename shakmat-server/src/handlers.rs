@@ -3,7 +3,7 @@ use std::mem::drop;
 
 use rocket::serde::json::Json;
 use rocket::{Route, State};
-use shakmat_engine::find_best_move;
+use shakmat_engine;
 
 use crate::messages::{ApiResponse, FenData, MoveData};
 use crate::state::ServerState;
@@ -69,12 +69,17 @@ pub fn get_computer_move(state: &StateMutex, game_id: &str) -> ApiResponse {
         Some(board) => *board,
         None => return ApiResponse::not_found("Game not found".to_owned()),
     };
+    
+    // Get the list of past positions (cloning it, since we drop the lock
+    // in the next step). We can assume that the game ID exists, otherwise
+    // we would have returned a not_found response.
+    let past_positions = state_lock.get_history(game_id).unwrap().clone();
 
     // We drop the lock here so the rather slow process of finding the best
     // move doesn't block all othe requests
     drop(state_lock);
 
-    match find_best_move(&board) {
+    match shakmat_engine::find_best_move(&board, &past_positions) {
         Some(mv) => ApiResponse::move_suggestion(&mv),
         None => ApiResponse::bad_request("No moves available".to_owned()),
     }

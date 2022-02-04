@@ -14,6 +14,7 @@ pub struct Board {
     turn: Color,
     fifty_move_rule_counter: u16,
     full_turns: u16,
+    plies: u16,
     en_passant_target: BitBoard,
     white_pieces: Pieces,
     black_pieces: Pieces,
@@ -39,6 +40,8 @@ pub struct Pieces {
 impl Board {
     pub fn from_fen(fen: &str) -> Result<Self, String> {
         let fen_info = read_fen(fen)?;
+        let plies = (fen_info.fullmoves_since_start - 1) * 2 
+            + (fen_info.turn == Black) as u16;
 
         let mut board = Self {
             castling_rights: fen_info.castling_rights,
@@ -55,6 +58,7 @@ impl Board {
             black_attacks: BitBoard::default(),
             white_attacks: BitBoard::default(),
             zobrist_key: 0,
+            plies
         };
 
         board.update_aux_bitboards();
@@ -98,6 +102,7 @@ impl Board {
         }
 
         new_board.update_aux_bitboards();
+        new_board.plies += 1;
         Ok(new_board)
     }
 
@@ -142,6 +147,10 @@ impl Board {
 
     pub fn zobrist_key(&self) -> u64 {
         self.zobrist_key
+    }
+
+    pub fn current_ply(&self) -> u16 {
+        self.plies
     }
 
     pub fn fifty_move_rule_counter(&self) -> u16 {

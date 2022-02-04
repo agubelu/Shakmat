@@ -23,25 +23,30 @@ pub struct NegamaxResult {
 
 // Wrapper function over the negamax algorithm, returning the best move
 // along with the associated score
-pub fn find_best(board: &Board, depth: u8) -> NegamaxResult {
+pub fn find_best(board: &Board, depth: u8, past_positions: &[u64]) -> NegamaxResult {
     let trans_table = TTable::new(TRASPOSITION_TABLE_SIZE);
-    // Alpha is initialized to MIN_VAL + 1 because otherwise, negating it in
-    // recursive calls still leads to a negative number due to the 
-    // asymetrical bounds of signed types
-    negamax(board, depth, 0, Evaluation::min_val(), Evaluation::max_val(), &trans_table)
+    // The array of zobrist keys corresponding to all past positions is cloned so that
+    // the search function can take ownership of it, adding and removing new positions
+    // during the search process.
+    negamax(board, depth, 0, Evaluation::min_val(), Evaluation::max_val(), &trans_table, &mut past_positions.to_vec())
 }
 
-pub fn negamax(board: &Board, mut depth_remaining: u8, current_depth: u8, mut alpha: Evaluation,
-               mut beta: Evaluation, trans_table: &TTable) -> NegamaxResult {
+pub fn negamax(
+    board: &Board, 
+    mut depth_remaining: u8, 
+    current_depth: u8, 
+    mut alpha: Evaluation,
+    mut beta: Evaluation, 
+    trans_table: &TTable,
+    past_positions: &mut Vec<u64>
+) -> NegamaxResult {
+
     let zobrist = board.zobrist_key();
     // Check whether the current position is in the trasposition table. Getting the
     // entry itself from the table is unsafe since there will be lockless concurrent
-    // access (in the future), however the 'zobrist' entry is always a valid unsigned
-    // 64-bit number, and we can use it to determine whether the entry is valid
-    // or contains garbage.
-
-    // We can only use the entry if the depth of the search that was stored is at least the
-    // same as the current one.
+    // access (in the future), however, the .get_entry() method does some sanity
+    // checks and only returns an entry if the data inside it is valid and the
+    // stored zobrist key matches.
     if let Some(tt_data) = trans_table.get_entry(zobrist) {
         // Use the data contained in the entry depending on the type of node that
         // this is, and only if the depth is >= the current one
@@ -58,6 +63,11 @@ pub fn negamax(board: &Board, mut depth_remaining: u8, current_depth: u8, mut al
                 return NegamaxResult::new(stored_score, *tt_data.best_move());
             }
         }
+    }
+
+    // If this is an immediate draw, we don't have to do anything else
+    if is_draw_by_repetition(board, current_depth, past_positions) {
+        return NegamaxResult::new(Evaluation::new(CONTEMPT), None);
     }
 
     // The current position is not stored, perform the full search from here.
@@ -92,8 +102,14 @@ pub fn negamax(board: &Board, mut depth_remaining: u8, current_depth: u8, mut al
             continue;
         }
 
+        // Update the vec of past positions with the current zobrist key before the recursive call
+        past_positions.push(zobrist);
+
         // Evaluate the next position recursively and update the current best score
-        let next_score = -negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -alpha, trans_table).eval;
+        let next_score = -negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -alpha, trans_table, past_positions).eval;
+
+        // We're done calling recursively, remove the current state from the history
+        past_positions.pop();
 
         if next_score > best_score {
             best_move = Some(mv);
@@ -129,6 +145,49 @@ pub fn negamax(board: &Board, mut depth_remaining: u8, current_depth: u8, mut al
     trans_table.write_entry(zobrist, TTEntry::new(zobrist, depth_remaining, best_score, node_type, best_move));
 
     NegamaxResult::new(best_score, best_move)
+}
+
+// Determines if a given position is a draw by repetition considering the previous history.
+// This function returns true if the current state is either:
+// - The third repetition of a position, where the previous two have happened
+//   during the previous moves that have been played
+// - The second repetition of a position that occured entirely during the search process
+// This is because we assume that if a position has repeated twice during
+// the search, it is likely that a third repetition will occur, so we save time.
+fn is_draw_by_repetition(board: &Board, cur_depth: u8, history: &[u64]) -> bool {
+    let current_zobrist = board.zobrist_key();
+    let mut rep_count = 1;
+
+    // We don't actually have to consider all past states. Moves which update the
+    // 50 move rule are irreversible, and thus no repetitions can occur before them.
+    let last_irr_move = board.current_ply() - board.fifty_move_rule_counter();
+
+    // This is a board state that occured during the search, so we're a number of moves
+    // ahead of the actual game. Determine the last ply that was actually played so we
+    // know if we should stop searching at 2 repetitions or 3 (see comment above the function)
+    let last_played_ply = board.current_ply() - cur_depth as u16;
+
+    let prev_states = history.iter()
+        .copied() // Copy the u64 references into this iter
+        .enumerate() // Associate each board state with the (0-based) ply in which it occured
+        .skip(last_irr_move as usize) // Fast forward to the last irreversible state of the board
+        .rev() // Start with the most recent move and go backwards
+        .step_by(2) // We only need to consider every other state, since reps can only
+                    // occur when the side to play is the same as the current one
+        .skip(1); // We don't need to consider the current state 
+
+    for (ply, zobrist) in prev_states {
+        if zobrist == current_zobrist { // We have a repetition!
+            rep_count += 1;
+            // Stop if we're still inside the search and it's the second rep,
+            // or if it's the third one
+            if rep_count == 2 && ply as u16 > last_played_ply || rep_count == 3 {
+                return true;
+            }
+        }
+    };
+        
+    false
 }
 
 impl NegamaxResult {
