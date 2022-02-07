@@ -37,7 +37,7 @@ impl ServerState {
     }
     
     pub fn get_turn_info(&self, key: &str) -> Option<TurnInfo> {
-        self.games.get(key).map(|gd| TurnInfo::from_board(&gd.board))
+        self.games.get(key).map(|gd| TurnInfo::from_board(&gd.board, &gd.previous_positions))
     }
     
     pub fn get_board(&self, key: &str) -> Option<&Board> {

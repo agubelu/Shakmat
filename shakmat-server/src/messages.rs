@@ -57,12 +57,18 @@ pub struct TurnInfo {
 }
 
 impl TurnInfo {
-    pub fn from_board(board: &Board) -> Self {
+    pub fn from_board(board: &Board, history: &[u64]) -> Self {
+        let moves = if shakmat_engine::is_draw_by_repetition(board, 0, history) {
+            vec![]
+        } else {
+            board.legal_moves()
+        };
+
         Self {
             turn_number: board.turn_number(),
             color: board.turn_color(),
-            moves: board.legal_moves(),
-            in_check: board.is_check(board.turn_color())
+            in_check: board.is_check(board.turn_color()),
+            moves
         }
     }
 }

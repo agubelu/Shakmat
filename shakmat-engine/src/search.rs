@@ -154,7 +154,7 @@ pub fn negamax(
 // - The second repetition of a position that occured entirely during the search process
 // This is because we assume that if a position has repeated twice during
 // the search, it is likely that a third repetition will occur, so we save time.
-fn is_draw_by_repetition(board: &Board, cur_depth: u8, history: &[u64]) -> bool {
+pub fn is_draw_by_repetition(board: &Board, cur_depth: u8, history: &[u64]) -> bool {
     let current_zobrist = board.zobrist_key();
     let mut rep_count = 1;
 
