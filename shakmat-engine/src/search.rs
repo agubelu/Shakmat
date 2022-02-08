@@ -72,15 +72,17 @@ pub fn negamax(
 
     // The current position is not stored, perform the full search from here.
     // If the current side to move is in check, extend the search by 1 more move to
-    // avoid misevaluating dangerous positions
+    // avoid misevaluating dangerous positions and prevent the search from
+    // entering in quiesence mode
     let color_moving = board.turn_color();
     if board.is_check(color_moving) {
         depth_remaining += 1;
     }
 
-    // If we are on a leaf node, use the static evaluation and return it right away.
+    // If we are on a leaf node, use the quiesence search to make sure the
+    // static evaluation is reliable
     if depth_remaining == 0 {
-        let score = evaluate_position(board);
+        let score = quiesence_search(board, alpha, beta);
         trans_table.write_entry(zobrist, TTEntry::new(zobrist, depth_remaining, score, NodeType::Exact, None));
         return NegamaxResult::new(score, None);
     }
@@ -145,6 +147,45 @@ pub fn negamax(
     trans_table.write_entry(zobrist, TTEntry::new(zobrist, depth_remaining, best_score, node_type, best_move));
 
     NegamaxResult::new(best_score, best_move)
+}
+
+// The quiesence search is a simplified version of the negamax search that only
+// expands captures. This runs in terminal nodes in the standard search, and mitigates
+// the horizon effect by making sure that we are not misevaluating a position where
+// a piece is hanging and can be easily captured in the next move.
+fn quiesence_search(board: &Board, mut alpha: Evaluation, beta: Evaluation) -> Evaluation {
+    let static_score = evaluate_position(board);
+
+    if static_score >= beta {
+        return beta;
+    } else if static_score > alpha {
+        alpha = static_score;
+    }
+
+    for mv in board.pseudolegal_moves() {
+        // Only consider moves that are captures
+        if !mv.is_capture(board) {
+            continue;
+        }
+
+        // As in the normal search, we are using pseudolegal moves, so we must make sure that
+        // the moving side is not in check. Castling moves are skipped in the previous check so
+        // we don't need to consider them.
+        let next_board = board.make_move(&mv, false).unwrap();
+        if next_board.is_check(board.turn_color()) {
+            continue;
+        }
+
+        let next_score = -quiesence_search(&next_board, -beta, -alpha);
+
+        if next_score >= beta {
+            return beta;
+        } else if next_score > alpha {
+            alpha = next_score;
+        }
+    }
+
+    alpha
 }
 
 // Determines if a given position is a draw by repetition considering the previous history.
