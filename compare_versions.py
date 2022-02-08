@@ -3,6 +3,9 @@
 import requests as rq
 from datetime import datetime
 
+OLD_VER = {"port": 8000, "name": "v1"}
+NEW_VER = {"port": 8001, "name": "v2"}
+
 class ShakmatVer:
     def __init__(self, port, name):
         self.name = name
@@ -75,23 +78,33 @@ class Match:
                         # White checkmated black
                         self.white.update_score("white", "win")
                         self.black.update_score("black", "lose")
+                        return "1-0"
                     else:
                         # Black checkmated white
                         self.white.update_score("white", "lose")
-                        self.black.update_score("black", "win")  
+                        self.black.update_score("black", "win")
+                        return "0-1"
                 else:
                     # Draw
                     self.white.update_score("white", "draw")
                     self.black.update_score("black", "draw")
-
-                break
+                    return "1/2-1/2"
 
             self.ply += 1
 
-white = ShakmatVer(8000, "v1")
-black = ShakmatVer(8001, "v2")
+old_engine = ShakmatVer(OLD_VER["port"], OLD_VER["name"])
+new_engine = ShakmatVer(NEW_VER["port"], NEW_VER["name"])
 
-Match(white, black, []).play()
+with open("openings.txt", "r") as f:
+    for i, line in enumerate(f, start=1):
+        opening_line = line.strip().split(" ")
 
-print(white.scores)
-print(white.move_speeds)
+        print(f"Opening {i}, game 1... ", end="", flush=True)
+        print(Match(old_engine, new_engine, opening_line).play(), flush=True)
+
+        print(f"Opening {i}, game 2... ", end="", flush=True)
+        print(Match(new_engine, old_engine, opening_line).play(), flush=True)
+
+
+print(old_engine.scores)
+print(new_engine.scores)
