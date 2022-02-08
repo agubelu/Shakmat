@@ -107,7 +107,7 @@ impl Board {
     }
 
     pub fn pseudolegal_moves(&self) -> Vec<Move> {
-        if self.fifty_move_rule_counter == 100 {
+        if self.fifty_move_rule_counter == 100 || self.is_draw_by_material() {
             vec![]
         } else {
             movegen::get_pseudolegal_moves(self, self.turn_color())
@@ -393,6 +393,21 @@ impl Board {
 
     fn piece_on(&self, square: u8) -> &Option<PieceType> {
         &self.piece_on_square[square as usize]
+    }
+
+    // A position is a draw by insufficient material if both sides have either
+    // only K, KB or KN
+    fn is_draw_by_material(&self) -> bool {
+        // Return false if the current position is a check, since otherwise
+        // we would return an empty list of available moves in a position that is
+        // a check, which would be interpreted as a checkmate
+        let is_check = self.is_check(self.turn_color());
+
+        let n_whites = self.all_whites.count();
+        let n_blacks = self.all_blacks.count();
+
+        !is_check && (n_whites == 1 || n_whites == 2 && (self.white_pieces.bishops.count() == 1 || self.white_pieces.knights.count() == 1)) 
+                  && (n_blacks == 1 || n_blacks == 2 && (self.black_pieces.bishops.count() == 1 || self.black_pieces.knights.count() == 1)) 
     }
 
     fn piece_on_mut(&mut self, square: u8) -> &mut Option<PieceType> {
