@@ -128,8 +128,8 @@ impl<'a> EvalData<'a> {
     }
 
     pub fn compute_score(&self) -> Evaluation {
-        let eval = ((self.score_opening * (256 - self.game_phase)) + (self.score_endgame * self.game_phase)) / 256;
-        Evaluation::new(eval)
+        let eval = ((self.score_opening as i32 * (256 - self.game_phase as i32)) + (self.score_endgame as i32 * self.game_phase as i32)) / 256;
+        Evaluation::new(eval as i16 * self.board.turn_color().sign())
     }
 
     fn update_game_phase(&mut self) {

@@ -23,12 +23,18 @@ pub struct NegamaxResult {
 
 // Wrapper function over the negamax algorithm, returning the best move
 // along with the associated score
-pub fn find_best(board: &Board, depth: u8, past_positions: &[u64]) -> NegamaxResult {
+pub fn find_best(board: &Board, max_depth: u8, past_positions: &[u64]) -> NegamaxResult {
     let trans_table = TTable::new(TRASPOSITION_TABLE_SIZE);
+    let mut res = negamax(board, max_depth, 0, Evaluation::min_val(), Evaluation::max_val(), &trans_table, &mut past_positions.to_vec());
     // The array of zobrist keys corresponding to all past positions is cloned so that
     // the search function can take ownership of it, adding and removing new positions
     // during the search process.
-    negamax(board, depth, 0, Evaluation::min_val(), Evaluation::max_val(), &trans_table, &mut past_positions.to_vec())
+
+    //for depth in 1 ..= max_depth {
+    //    res = negamax(board, depth, 0, Evaluation::min_val(), Evaluation::max_val(), &trans_table, &mut past_positions.//to_vec())
+    //}
+
+    res
 }
 
 pub fn negamax(
@@ -82,7 +88,8 @@ pub fn negamax(
     // If we are on a leaf node, use the quiesence search to make sure the
     // static evaluation is reliable
     if depth_remaining == 0 {
-        let score = quiesence_search(board, alpha, beta);
+        //let score = quiesence_search(board, alpha, beta);
+        let score = evaluate_position(board);
         trans_table.write_entry(zobrist, TTEntry::new(zobrist, depth_remaining, score, NodeType::Exact, None));
         return NegamaxResult::new(score, None);
     }
@@ -94,7 +101,10 @@ pub fn negamax(
     // We use the pseudolegal move generator to construct the new board ourselves
     // and filter out moves that result in illegal positions. This is exactly what
     // board.legal_moves() does, so this way we avoid doing it twice.
-    for mv in board.pseudolegal_moves() {
+    let mut moves = board.pseudolegal_moves();
+    //order_moves(&mut moves, board, trans_table);
+
+    for mv in moves {
         let next_board = board.make_move(&mv, false).unwrap();
 
         // This is a pseudo-legal move, we must make sure that the side moving is not in check.
@@ -186,6 +196,14 @@ fn quiesence_search(board: &Board, mut alpha: Evaluation, beta: Evaluation) -> E
     }
 
     alpha
+}
+
+fn order_moves(moves: &mut Vec<Move>, board: &Board, tt: &TTable) {
+    if let Some(tt_data) = tt.get_entry(board.zobrist_key()) {
+        if let Some(best) = tt_data.best_move() {
+            moves.sort_by_key(|mv| -((*mv == *best) as i8))
+        }
+    }
 }
 
 // Determines if a given position is a draw by repetition considering the previous history.

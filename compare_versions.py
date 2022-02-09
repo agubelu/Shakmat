@@ -2,9 +2,10 @@
 # and reports on the final results, both in term of scores and average move speed.
 import requests as rq
 from datetime import datetime
+from json import dumps
 
-OLD_VER = {"port": 8000, "name": "v1"}
-NEW_VER = {"port": 8001, "name": "v2"}
+OLD_VER = {"port": 8000, "name": "Baseline"}
+NEW_VER = {"port": 8001, "name": "QS+PST"}
 
 class ShakmatVer:
     def __init__(self, port, name):
@@ -78,17 +79,17 @@ class Match:
                         # White checkmated black
                         self.white.update_score("white", "win")
                         self.black.update_score("black", "lose")
-                        return "1-0"
+                        return "W"
                     else:
                         # Black checkmated white
                         self.white.update_score("white", "lose")
                         self.black.update_score("black", "win")
-                        return "0-1"
+                        return "B"
                 else:
                     # Draw
                     self.white.update_score("white", "draw")
                     self.black.update_score("black", "draw")
-                    return "1/2-1/2"
+                    return "D"
 
             self.ply += 1
 
@@ -100,11 +101,17 @@ with open("openings.txt", "r") as f:
         opening_line = line.strip().split(" ")
 
         print(f"Opening {i}, game 1... ", end="", flush=True)
-        print(Match(old_engine, new_engine, opening_line).play(), flush=True)
+        res = Match(old_engine, new_engine, opening_line).play()
+        d = {"W": OLD_VER["name"], "B": NEW_VER["name"], "D": "Draw"}
+        print(d[res], flush=True)
 
         print(f"Opening {i}, game 2... ", end="", flush=True)
-        print(Match(new_engine, old_engine, opening_line).play(), flush=True)
+        res = Match(new_engine, old_engine, opening_line).play()
+        d = {"B": OLD_VER["name"], "W": NEW_VER["name"], "D": "Draw"}
+        print(d[res], flush=True)
 
+with open("scores.json", "w") as f:
+    f.write(dumps({OLD_VER["name"]: old_engine.scores, NEW_VER["name"]: new_engine.scores}))
 
-print(old_engine.scores)
-print(new_engine.scores)
+with open("times.json", "w") as f:
+    f.write(dumps({OLD_VER["name"]: old_engine.move_speeds, NEW_VER["name"]: new_engine.move_speeds}))
