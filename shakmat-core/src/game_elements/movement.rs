@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use serde::{Serialize, Serializer};
 
-use super::{PieceType, Square};
+use super::{PieceType, Square, PieceType::*};
 use crate::board::{Board, BitBoard};
 
 // Avoid clashes between the core Result and the formatter Result
@@ -47,6 +47,22 @@ impl Move {
             Self::Normal {to, ep, ..} => *ep || !(BitBoard::from_square(*to) & board.get_all_bitboard()).is_empty(),
             Self::PawnPromotion {to, ..} => !(BitBoard::from_square(*to) & board.get_all_bitboard()).is_empty(),
             _ => false
+        }
+    }
+
+    pub fn piece_moving(&self, board: &Board) -> PieceType {
+        match self {
+            Self::Normal {from, ..} => board.piece_on(*from).unwrap(),
+            Self::PawnPromotion {..} => Pawn,
+            _ => King // Castling
+        }
+    }
+
+    pub fn piece_captured(&self, board: &Board) -> Option<PieceType> {
+        match self {
+            Self::Normal {to, ..} => *board.piece_on(*to),
+            Self::PawnPromotion {to, ..} => *board.piece_on(*to),
+            _ => None // Castling
         }
     }
 }

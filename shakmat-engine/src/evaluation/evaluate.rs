@@ -1,5 +1,5 @@
 use std::fmt::{Formatter, Display};
-use std::ops::{Neg, Add};
+use std::ops::{Neg, Add, Sub};
 use shakmat_core::{Board, Color::*, BitBoard, PieceType::*};
 use super::positional_tables;
 
@@ -128,6 +128,8 @@ impl<'a> EvalData<'a> {
     }
 
     pub fn compute_score(&self) -> Evaluation {
+        // The values are temporarily promoted to i32 to avoid overflowing when
+        // multiplying by the game phase
         let eval = ((self.score_opening as i32 * (256 - self.game_phase as i32)) + (self.score_endgame as i32 * self.game_phase as i32)) / 256;
         Evaluation::new(eval as i16 * self.board.turn_color().sign())
     }
@@ -140,6 +142,7 @@ impl<'a> EvalData<'a> {
         self.game_phase = (phase * 256 + 12) / 24
     }
 }
+
 
 impl Evaluation {
     pub fn new(score: i16) -> Self {
@@ -168,6 +171,16 @@ impl Neg for Evaluation {
     fn neg(self) -> Self::Output {
         Self::new(-self.score)
     }
+}
+
+impl Sub<i16> for Evaluation {
+    type Output = Self;
+
+    fn sub(self, rhs: i16) -> Self::Output {
+        Self::new(self.score - rhs)
+    }
+
+    
 }
 
 impl Add<i16> for Evaluation {

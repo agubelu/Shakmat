@@ -107,10 +107,18 @@ impl Board {
     }
 
     pub fn pseudolegal_moves(&self) -> Vec<Move> {
-        if self.fifty_move_rule_counter == 100 || self.is_draw_by_material() {
+        if self.is_draw() {
             vec![]
         } else {
             movegen::get_pseudolegal_moves(self, self.turn_color())
+        }
+    }
+
+    pub fn pseudolegal_caps(&self) -> Vec<Move> {
+        if self.is_draw() {
+            vec![]
+        } else {
+            movegen::get_pseudolegal_caps_proms(self)
         }
     }
 
@@ -164,6 +172,10 @@ impl Board {
         }
     }
 
+    pub fn piece_on(&self, square: u8) -> &Option<PieceType> {
+        &self.piece_on_square[square as usize]
+    }
+
     pub fn get_color_bitboard(&self, color: Color) -> BitBoard {
         match color {
             White => self.all_whites,
@@ -188,6 +200,10 @@ impl Board {
 
     ///////////////////////////////////////////////////////////////////////////
     /// Private auxiliary functions
+    
+    fn is_draw(&self) -> bool {
+        self.fifty_move_rule_counter == 100 || self.is_draw_by_material()
+    }
 
     fn move_piece(&mut self, movement: &Move) {
         // This function is called with legal moves, so we can assume
@@ -389,10 +405,6 @@ impl Board {
             White => &mut self.white_pieces,
             Black => &mut self.black_pieces
         }
-    }
-
-    fn piece_on(&self, square: u8) -> &Option<PieceType> {
-        &self.piece_on_square[square as usize]
     }
 
     // A position is a draw by insufficient material if both sides have either

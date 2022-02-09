@@ -9,7 +9,7 @@ pub use search::is_draw_by_repetition;
 
 
 pub fn find_best_move(board: &Board, past_positions: &[u64]) -> Option<Move> {
-    let best = search::find_best(board, 6, past_positions);
+    let best = search::find_best(board, 7, past_positions);
     println!("Evaluation: {}", best.eval);
     best.best
 }

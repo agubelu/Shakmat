@@ -1,5 +1,5 @@
 use std::cmp::{max, min};
-use shakmat_core::{Board, Move};
+use shakmat_core::{Board, Move, PieceType};
 
 use crate::evaluation::{evaluate_position, Evaluation};
 use crate::trasposition::{TTable, TTEntry, NodeType};
@@ -21,6 +21,12 @@ pub struct NegamaxResult {
     pub best: Option<Move>,
 }
 
+// Struct to hold a pair of (Move, move heuristical value)
+struct RatedMove {
+    pub mv: Move,
+    pub score: i16
+}
+
 // Wrapper function over the negamax algorithm, returning the best move
 // along with the associated score
 pub fn find_best(board: &Board, max_depth: u8, past_positions: &[u64]) -> NegamaxResult {
@@ -30,9 +36,9 @@ pub fn find_best(board: &Board, max_depth: u8, past_positions: &[u64]) -> Negama
     // the search function can take ownership of it, adding and removing new positions
     // during the search process.
 
-    //for depth in 1 ..= max_depth {
-    //    res = negamax(board, depth, 0, Evaluation::min_val(), Evaluation::max_val(), &trans_table, &mut past_positions.//to_vec())
-    //}
+    for depth in 1 ..= max_depth {
+        res = negamax(board, depth, 0, Evaluation::min_val(), Evaluation::max_val(), &trans_table, &mut past_positions.to_vec())
+    }
 
     res
 }
@@ -60,14 +66,15 @@ pub fn negamax(
             let stored_score = tt_data.eval_score();
             match tt_data.node_type() {
                 NodeType::Exact => return NegamaxResult::new(stored_score, *tt_data.best_move()),
-                NodeType::AlphaCutoff => alpha = max(alpha, stored_score),
-                NodeType::BetaCutoff => beta = min(beta, stored_score),
+                NodeType::AlphaCutoff if stored_score <= alpha => return NegamaxResult::new(alpha, *tt_data.best_move()),
+                NodeType::BetaCutoff if stored_score >= beta => return NegamaxResult::new(beta, *tt_data.best_move()),
+                _ => {}
             };
 
             // Check whether the evaluation window has closed completely
-            if alpha >= beta {
-                return NegamaxResult::new(stored_score, *tt_data.best_move());
-            }
+            //if alpha >= beta {
+            //    return NegamaxResult::new(stored_score, *tt_data.best_move());
+            //}
         }
     }
 
@@ -88,8 +95,7 @@ pub fn negamax(
     // If we are on a leaf node, use the quiesence search to make sure the
     // static evaluation is reliable
     if depth_remaining == 0 {
-        //let score = quiesence_search(board, alpha, beta);
-        let score = evaluate_position(board);
+        let score = quiesence_search(board, alpha, beta, trans_table);
         trans_table.write_entry(zobrist, TTEntry::new(zobrist, depth_remaining, score, NodeType::Exact, None));
         return NegamaxResult::new(score, None);
     }
@@ -101,10 +107,11 @@ pub fn negamax(
     // We use the pseudolegal move generator to construct the new board ourselves
     // and filter out moves that result in illegal positions. This is exactly what
     // board.legal_moves() does, so this way we avoid doing it twice.
-    let mut moves = board.pseudolegal_moves();
-    //order_moves(&mut moves, board, trans_table);
+    let moves = board.pseudolegal_moves();
 
-    for mv in moves {
+    let mut analyzed_moves = 0;
+
+    for RatedMove{mv, ..} in order_moves(moves, board, trans_table) {
         let next_board = board.make_move(&mv, false).unwrap();
 
         // This is a pseudo-legal move, we must make sure that the side moving is not in check.
@@ -117,11 +124,24 @@ pub fn negamax(
         // Update the vec of past positions with the current zobrist key before the recursive call
         past_positions.push(zobrist);
 
-        // Evaluate the next position recursively and update the current best score
-        let next_score = -negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -alpha, trans_table, past_positions).eval;
+        // Since the moves are ordered, only evaluate the first move with a full window
+        let next_score = if analyzed_moves == 0 {
+            -negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -alpha, trans_table, past_positions).eval
+        } else {
+            // Try a minimal window first. If the value falls under [alpha, beta] then use the standard window
+            let mut temptative_score = -negamax(&next_board, depth_remaining - 1, current_depth + 1, (-alpha)-1, -alpha, trans_table, past_positions).eval;
+
+            if temptative_score > alpha && temptative_score < beta {
+                // Do a full evaluation since the position was not significantly worsened
+                temptative_score = -negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -temptative_score, trans_table, past_positions).eval
+            }
+
+            temptative_score
+        };
 
         // We're done calling recursively, remove the current state from the history
         past_positions.pop();
+        analyzed_moves += 1;
 
         if next_score > best_score {
             best_move = Some(mv);
@@ -163,7 +183,7 @@ pub fn negamax(
 // expands captures. This runs in terminal nodes in the standard search, and mitigates
 // the horizon effect by making sure that we are not misevaluating a position where
 // a piece is hanging and can be easily captured in the next move.
-fn quiesence_search(board: &Board, mut alpha: Evaluation, beta: Evaluation) -> Evaluation {
+fn quiesence_search(board: &Board, mut alpha: Evaluation, beta: Evaluation, trans_table: &TTable) -> Evaluation {
     let static_score = evaluate_position(board);
 
     if static_score >= beta {
@@ -172,21 +192,18 @@ fn quiesence_search(board: &Board, mut alpha: Evaluation, beta: Evaluation) -> E
         alpha = static_score;
     }
 
-    for mv in board.pseudolegal_moves() {
-        // Only consider moves that are captures
-        if !mv.is_capture(board) {
-            continue;
-        }
-
+    // Only consider moves that are captures or pawn promotions
+    let moves = board.pseudolegal_caps();
+    for RatedMove{mv, ..} in order_moves(moves, board, trans_table) {
         // As in the normal search, we are using pseudolegal moves, so we must make sure that
-        // the moving side is not in check. Castling moves are skipped in the previous check so
-        // we don't need to consider them.
+        // the moving side is not in check. Castling moves are not generated now so we
+        // don't have to worry about them
         let next_board = board.make_move(&mv, false).unwrap();
         if next_board.is_check(board.turn_color()) {
             continue;
         }
 
-        let next_score = -quiesence_search(&next_board, -beta, -alpha);
+        let next_score = -quiesence_search(&next_board, -beta, -alpha, trans_table);
 
         if next_score >= beta {
             return beta;
@@ -198,12 +215,30 @@ fn quiesence_search(board: &Board, mut alpha: Evaluation, beta: Evaluation) -> E
     alpha
 }
 
-fn order_moves(moves: &mut Vec<Move>, board: &Board, tt: &TTable) {
-    if let Some(tt_data) = tt.get_entry(board.zobrist_key()) {
-        if let Some(best) = tt_data.best_move() {
-            moves.sort_by_key(|mv| -((*mv == *best) as i8))
-        }
-    }
+fn order_moves(moves: Vec<Move>, board: &Board, tt: &TTable) -> Vec<RatedMove> {
+    let best_tt_move = match tt.get_entry(board.zobrist_key()) {
+        None => None,
+        Some(tt_data) => *tt_data.best_move()
+    };
+
+    let mut rated_moves: Vec<RatedMove> = moves.into_iter().map(|mv| rate_move(mv, best_tt_move, board)).collect();
+    rated_moves.sort_unstable_by_key(|rm| -rm.score);
+
+    rated_moves
+}
+
+// Takes a move by value and returns a struct with that move
+// and its heuristic value. PV moves are rated the highest, then captures
+fn rate_move(mv: Move, pv_move: Option<Move>, board: &Board) -> RatedMove {
+    let score = if pv_move == Some(mv) {
+        10_000 // PV move, should be evaluated first
+    } else if let Some(captured) = mv.piece_captured(board) {
+        value_of_capture(captured) - value_of_attacker(mv.piece_moving(board))
+    } else {
+        0
+    };
+
+    RatedMove { mv, score }
 }
 
 // Determines if a given position is a draw by repetition considering the previous history.
@@ -247,6 +282,31 @@ pub fn is_draw_by_repetition(board: &Board, cur_depth: u8, history: &[u64]) -> b
     };
         
     false
+}
+
+// Most Valuable Victim - Least Valuable Aggressor (MVV-LVA)
+// Attempts to provide a heuristic for capturing moves by
+// capturing with the least valuable piece
+const fn value_of_attacker(piece: PieceType) -> i16 {
+    match piece {
+        PieceType::Pawn => 10,
+        PieceType::Knight => 30,
+        PieceType::Bishop => 30,
+        PieceType::Rook => 50,
+        PieceType::Queen => 90,
+        PieceType::King => 99,
+    }
+}
+
+const fn value_of_capture(piece: PieceType) -> i16 {
+    match piece {
+        PieceType::Pawn => 100,
+        PieceType::Knight => 300,
+        PieceType::Bishop => 300,
+        PieceType::Rook => 500,
+        PieceType::Queen => 900,
+        PieceType::King => 9999, // Doesn't really happen
+    }
 }
 
 impl NegamaxResult {
