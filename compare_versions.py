@@ -5,7 +5,7 @@ from datetime import datetime
 from json import dumps
 
 OLD_VER = {"port": 8000, "name": "Baseline"}
-NEW_VER = {"port": 8001, "name": "QS+PST"}
+NEW_VER = {"port": 8001, "name": "PVS7"}
 
 class ShakmatVer:
     def __init__(self, port, name):

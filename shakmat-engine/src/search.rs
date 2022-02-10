@@ -1,4 +1,3 @@
-use std::cmp::{max, min};
 use shakmat_core::{Board, Move, PieceType};
 
 use crate::evaluation::{evaluate_position, Evaluation};
@@ -48,34 +47,20 @@ pub fn negamax(
     mut depth_remaining: u8, 
     current_depth: u8, 
     mut alpha: Evaluation,
-    mut beta: Evaluation, 
+    beta: Evaluation, 
     trans_table: &TTable,
     past_positions: &mut Vec<u64>
 ) -> NegamaxResult {
 
-    let zobrist = board.zobrist_key();
     // Check whether the current position is in the trasposition table. Getting the
     // entry itself from the table is unsafe since there will be lockless concurrent
     // access (in the future), however, the .get_entry() method does some sanity
     // checks and only returns an entry if the data inside it is valid and the
     // stored zobrist key matches.
-    if let Some(tt_data) = trans_table.get_entry(zobrist) {
-        // Use the data contained in the entry depending on the type of node that
-        // this is, and only if the depth is >= the current one
-        if tt_data.depth >= depth_remaining {
-            let stored_score = tt_data.eval_score();
-            match tt_data.node_type() {
-                NodeType::Exact => return NegamaxResult::new(stored_score, *tt_data.best_move()),
-                NodeType::AlphaCutoff if stored_score <= alpha => return NegamaxResult::new(alpha, *tt_data.best_move()),
-                NodeType::BetaCutoff if stored_score >= beta => return NegamaxResult::new(beta, *tt_data.best_move()),
-                _ => {}
-            };
-
-            // Check whether the evaluation window has closed completely
-            //if alpha >= beta {
-            //    return NegamaxResult::new(stored_score, *tt_data.best_move());
-            //}
-        }
+    let mut tt_move = None;
+    let zobrist = board.zobrist_key();
+    if let Some(eval) = trans_table.get_entry(zobrist, depth_remaining, alpha, beta, &mut tt_move) {
+        return NegamaxResult::new(eval, tt_move)
     }
 
     // If this is an immediate draw, we don't have to do anything else
@@ -111,7 +96,7 @@ pub fn negamax(
 
     let mut analyzed_moves = 0;
 
-    for RatedMove{mv, ..} in order_moves(moves, board, trans_table) {
+    for RatedMove{mv, ..} in order_moves(moves, board, tt_move) {
         let next_board = board.make_move(&mv, false).unwrap();
 
         // This is a pseudo-legal move, we must make sure that the side moving is not in check.
@@ -194,7 +179,7 @@ fn quiesence_search(board: &Board, mut alpha: Evaluation, beta: Evaluation, tran
 
     // Only consider moves that are captures or pawn promotions
     let moves = board.pseudolegal_caps();
-    for RatedMove{mv, ..} in order_moves(moves, board, trans_table) {
+    for RatedMove{mv, ..} in order_moves(moves, board, None) {
         // As in the normal search, we are using pseudolegal moves, so we must make sure that
         // the moving side is not in check. Castling moves are not generated now so we
         // don't have to worry about them
@@ -215,15 +200,9 @@ fn quiesence_search(board: &Board, mut alpha: Evaluation, beta: Evaluation, tran
     alpha
 }
 
-fn order_moves(moves: Vec<Move>, board: &Board, tt: &TTable) -> Vec<RatedMove> {
-    let best_tt_move = match tt.get_entry(board.zobrist_key()) {
-        None => None,
-        Some(tt_data) => *tt_data.best_move()
-    };
-
-    let mut rated_moves: Vec<RatedMove> = moves.into_iter().map(|mv| rate_move(mv, best_tt_move, board)).collect();
+fn order_moves(moves: Vec<Move>, board: &Board, tt_move: Option<Move>) -> Vec<RatedMove> {
+    let mut rated_moves: Vec<RatedMove> = moves.into_iter().map(|mv| rate_move(mv, tt_move, board)).collect();
     rated_moves.sort_unstable_by_key(|rm| -rm.score);
-
     rated_moves
 }
 
