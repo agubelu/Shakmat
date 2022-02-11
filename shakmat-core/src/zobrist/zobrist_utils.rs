@@ -5,7 +5,7 @@ use rand::{Rng, SeedableRng};
 
 const N_KEYS: usize = 793;
 /*
- The 781 elements in the array are logically distributed as follows:
+ The 793 elements in the array are logically distributed as follows:
  - 64 * 6 for all possible squares of all types of white pieces (0-383)
  - 64 * 6 for all possible squares of all types of black pieces (384-767)
  - 16 for all possible castling options (WK, WQ, BK, BQ) (768-784)

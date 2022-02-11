@@ -220,8 +220,15 @@ impl Board {
         let mut captured_piece = None;
 
         // If there is a piece in the destination square, remove it
+
         // First check for e.p., where the square we must remove is different
-        if movement.is_ep() {
+        // A movement is an en passant capture if it's a pawn moving and its destination
+        // is the active en passant square. Note that it is impossible for any pawn moves
+        // to the e.p. square not to be an en passant capture, since a pawn cannot
+        // move forward to it since, by definition, the "from" square would be
+        // occupied by the pawn that caused the e.p. square to become active in
+        // the first place.
+        if piece_moving == Pawn && to_bb == self.ep_square() {
             let target_ep = match moving_color {
                 White => movement.to() - 8,
                 Black => movement.to() + 8,
@@ -237,6 +244,7 @@ impl Board {
             // Update the zobrist key removing the captured pawn
             self.zobrist_key ^= zobrist::get_key_for_piece(Pawn, enemy_color, target_ep);
             
+        // Not an en-passant, just a normal capture
         } else if !(enemy_pieces & to_bb).is_empty() {
             self.get_pieces_mut(enemy_color).apply_mask(!to_bb);
             captured_piece = *self.piece_on(movement.to());
@@ -287,8 +295,8 @@ impl Board {
             (row_start + 3, row_start + 5, row_start + 7, row_start + 4)
         };
 
-        let king_move = Move::Normal { from: king_from, to: king_to, ep: false };
-        let rook_move = Move::Normal { from: rook_from, to: rook_to, ep: false };
+        let king_move = Move::Normal { from: king_from, to: king_to };
+        let rook_move = Move::Normal { from: rook_from, to: rook_to };
 
         self.move_piece(&king_move);
         self.move_piece(&rook_move);
@@ -306,7 +314,7 @@ impl Board {
         // If this is a pawn move, check if it's a double push to set the e.p. square
         // Note: this runs after the piece has been moved, so the piece we are
         // looking for is in the "to" position
-        if let Move::Normal {ep: false, from, to} = movement {
+        if let Move::Normal {from, to} = movement {
             if self.piece_on(movement.to()) == &Some(Pawn) {
                 // This is done *before* the color is updated, hence,
                 // the current turn is the one that played the move

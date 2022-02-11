@@ -10,7 +10,7 @@ type FmtResult = std::fmt::Result;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Move {
-    Normal { from: u8, to: u8, ep: bool},
+    Normal { from: u8, to: u8 },
     PawnPromotion { from: u8, to: u8, promote_to: PieceType },
     ShortCastle,
     LongCastle
@@ -33,18 +33,11 @@ impl Move {
         }
     }
 
-    pub fn is_ep(&self) -> bool {
-        match self {
-            Self::Normal {ep, ..} => *ep,
-            _ => false
-        }
-    }
-
     pub fn is_capture(&self, board: &Board) -> bool {
         // A move is a capture if the destination square is occupied,
         // of if it's an en passant pawn capture
         match self {
-            Self::Normal {to, ep, ..} => *ep || !(BitBoard::from_square(*to) & board.get_all_bitboard()).is_empty(),
+            Self::Normal {to, ..} => !(BitBoard::from_square(*to) & (board.get_all_bitboard() | board.ep_square())).is_empty(),
             Self::PawnPromotion {to, ..} => !(BitBoard::from_square(*to) & board.get_all_bitboard()).is_empty(),
             _ => false
         }

@@ -58,7 +58,7 @@ pub fn get_pseudolegal_moves(board: &Board, color: Color) -> Vec<Move> {
     pieces.pawns.piece_indices().for_each(|from| {
         // Captures, which must target either an enemy piece or the e.p. square
         let cap_bb = magic::pawn_attacks(from as usize, color) & (enemy_pieces | ep_square);
-        pawn_moves.extend(cap_bb.piece_indices().map(|to| Move::Normal { from, to, ep: to == ep_index }));
+        pawn_moves.extend(cap_bb.piece_indices().map(|to| Move::Normal { from, to }));
 
         // Next, pushes. Going one step forward is always an option, if nothing is
         // in the way
@@ -72,7 +72,7 @@ pub fn get_pseudolegal_moves(board: &Board, color: Color) -> Vec<Move> {
             push_bb &= !((all_pieces & SIXTH_RANK_MASK) >> 8);
         }
 
-        pawn_moves.extend(push_bb.piece_indices().map(|to| Move::Normal { from, to, ep: false }));
+        pawn_moves.extend(push_bb.piece_indices().map(|to| Move::Normal { from, to }));
     });
 
     // Transform the pawn moves into promotions if needed
@@ -116,11 +116,11 @@ pub fn get_pseudolegal_caps_proms(board: &Board) -> Vec<Move> {
     pieces.pawns.piece_indices().for_each(|from| {
         // Captures, which must target either an enemy piece or the e.p. square
         let cap_bb = magic::pawn_attacks(from as usize, color) & (enemy_pieces | board.ep_square());
-        pawn_moves.extend(cap_bb.piece_indices().map(|to| Move::Normal { from, to, ep: to == ep_index }));
+        pawn_moves.extend(cap_bb.piece_indices().map(|to| Move::Normal { from, to }));
 
         // Pushes that end up in the promotion rank
         let push_bb = magic::pawn_pushes(from as usize, color) & !all_pieces & prom_rank;
-        pawn_moves.extend(push_bb.piece_indices().map(|to| Move::Normal { from, to, ep: false }));
+        pawn_moves.extend(push_bb.piece_indices().map(|to| Move::Normal { from, to }));
     });
 
     // Transform the pawn moves into promotions if needed
@@ -164,31 +164,31 @@ fn generate_normal_moves(pieces: &Pieces, all_pieces: BitBoard, mask: BitBoard) 
     // Queen
     let queen_moves = pieces.queens.piece_indices().flat_map(|from| {
         let move_bb = magic::queen_moves(from as usize, all_pieces) & mask;
-        move_bb.piece_indices().map(move |to| Move::Normal { from, to, ep: false })
+        move_bb.piece_indices().map(move |to| Move::Normal { from, to })
     });
 
     // Rook
     let rook_moves = pieces.rooks.piece_indices().flat_map(|from| {
         let move_bb = magic::rook_moves(from as usize, all_pieces) & mask;
-        move_bb.piece_indices().map(move |to| Move::Normal { from, to, ep: false })
+        move_bb.piece_indices().map(move |to| Move::Normal { from, to })
     });
 
     // Bishop
     let bishop_moves = pieces.bishops.piece_indices().flat_map(|from| {
         let move_bb = magic::bishop_moves(from as usize, all_pieces) & mask;
-        move_bb.piece_indices().map(move |to| Move::Normal { from, to, ep: false })
+        move_bb.piece_indices().map(move |to| Move::Normal { from, to })
     });
 
     // Horsey
     let knight_moves = pieces.knights.piece_indices().flat_map(|from| {
         let move_bb = magic::knight_moves(from as usize) & mask;
-        move_bb.piece_indices().map(move |to| Move::Normal { from, to, ep: false })
+        move_bb.piece_indices().map(move |to| Move::Normal { from, to })
     });
 
     // King
     let king_moves = pieces.king.piece_indices().flat_map(|from| {
         let move_bb = magic::king_moves(from as usize) & mask;
-        move_bb.piece_indices().map(move |to| Move::Normal { from, to, ep: false })
+        move_bb.piece_indices().map(move |to| Move::Normal { from, to })
     });
 
     queen_moves.chain(bishop_moves).chain(rook_moves)
