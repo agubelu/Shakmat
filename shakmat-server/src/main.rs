@@ -8,6 +8,7 @@ mod messages;
 use state::ServerState;
 use std::env::args;
 use std::sync::Mutex;
+use shakmat_engine::ShakmatEngine;
 
 const DEFAULT_PORT: u16 = 8000;
 
@@ -25,4 +26,5 @@ fn run() -> _ {
         .configure(config)
         .mount("/", handlers::get_routes())
         .manage(Mutex::from(ServerState::new()))
+        .manage(ShakmatEngine::default())
 }

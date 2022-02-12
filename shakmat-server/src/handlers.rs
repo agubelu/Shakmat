@@ -2,6 +2,7 @@ use std::sync::Mutex;
 use std::mem::drop;
 
 use shakmat_core::Move;
+use shakmat_engine::ShakmatEngine;
 use rocket::serde::json::Json;
 use rocket::{Route, State};
 
@@ -59,7 +60,7 @@ pub fn make_move(state: &StateMutex, game_id: &str, r#move: Json<MoveData>) -> A
 }
 
 #[get("/games/<game_id>/move_suggestion")]
-pub fn get_computer_move(state: &StateMutex, game_id: &str) -> ApiResponse {
+pub fn get_computer_move(state: &StateMutex, engine: &State<ShakmatEngine>, game_id: &str) -> ApiResponse {
     let state_lock = state.inner().lock().unwrap();
     let board = match state_lock.get_board(game_id) {
         Some(board) => *board,
@@ -75,7 +76,7 @@ pub fn get_computer_move(state: &StateMutex, game_id: &str) -> ApiResponse {
     // move doesn't block all othe requests
     drop(state_lock);
 
-    match shakmat_engine::find_best_move(&board, &past_positions) {
+    match engine.inner().find_best_move(&board, &past_positions) {
         Some(mv) => ApiResponse::move_suggestion(&mv),
         None => ApiResponse::bad_request("No moves available".to_owned()),
     }
