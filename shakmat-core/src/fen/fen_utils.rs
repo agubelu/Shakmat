@@ -100,7 +100,7 @@ fn load_board(board_info: &str, fen_info: &mut FENInfo) -> Result<(), String> {
                 };
 
                 *pieces.get_pieces_of_type_mut(piece) |= bb;
-                let square = bb.piece_indices().next().unwrap();
+                let square = bb.first_piece_index();
                 fen_info.piece_on_square[square as usize] = Some(piece);
 
                 file += 1;

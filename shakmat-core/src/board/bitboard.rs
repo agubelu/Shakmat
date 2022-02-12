@@ -40,6 +40,11 @@ impl BitBoard {
         PieceIndexIter { value: self.bb }
     }
 
+    pub fn first_piece_index(&self) -> u8 {
+        // Callers assume that there is at least one piece in this BB
+        self.bb.trailing_zeros() as u8
+    }
+
     pub fn count(&self) -> u32 {
         self.bb.count_ones()
     }

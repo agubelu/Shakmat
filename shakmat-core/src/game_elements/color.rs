@@ -11,8 +11,8 @@ impl Color {
     // Used for zobrist keys
     pub const fn to_index(&self) -> usize {
         match self {
-            Self::White => 0,
-            Self::Black => 1,
+            Self::White => 1,
+            Self::Black => 0,
         }
     }
 

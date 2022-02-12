@@ -6,6 +6,7 @@ use crate::game_elements::{CastlingRights, Color, Color::*, PieceType, PieceType
 use crate::board::BitBoard;
 use crate::fen::{read_fen, DEFAULT_FEN};
 use crate::zobrist;
+use crate::magic::EP_ATTACKS;
 use super::movegen;
 
 #[derive(Clone, Copy)]
@@ -80,6 +81,17 @@ impl Board {
         // Copy the current board and make the changes on it
         let mut new_board = *self;
 
+        // If there is one active e.p. square, remove it from the zobrist key
+        // The e.p. flag for the zobrist key must only be flipped if the
+        // side to move has a pawn ready to capture the e.p. square, which
+        // is the condition that sets in in the first place
+        // This is done before update_en_passant() and outside it because
+        // that function clears the e.p. square, and we still need it for
+        // the move_piece() method, so we can know if a capture is e.p. or not
+        if new_board.update_ep_zobrist(self.turn_color()) {
+            new_board.zobrist_key ^= zobrist::get_key_ep_square(self.ep_square().first_piece_index());
+        }
+
         // Perform the movement in question
         if matches!(movement, Move::LongCastle | Move::ShortCastle) {
             new_board.castle(movement);
@@ -90,12 +102,13 @@ impl Board {
             new_board.move_piece(movement);
         }
 
+        // Update the en passant data
         new_board.update_en_passant(movement);
 
         // Update the current color to play and the number of total turns,
         // if black just moved
         new_board.turn = !self.turn;
-        new_board.zobrist_key ^= zobrist::get_key_black_turn();
+        new_board.zobrist_key ^= zobrist::get_key_white_turn();
 
         if new_board.turn == White {
             new_board.full_turns += 1;
@@ -303,30 +316,29 @@ impl Board {
     }
 
     fn update_en_passant(&mut self, movement: &Move) {
-        // If there is one active e.p. square, remove it from the zobrist key
-        if !self.en_passant_target.is_empty() {
-            self.zobrist_key ^= zobrist::get_key_ep_square(self.ep_square().piece_indices().next().unwrap());
-        }
-
         // Remove the e.p. square
         self.en_passant_target.clear();
 
         // If this is a pawn move, check if it's a double push to set the e.p. square
-        // Note: this runs after the piece has been moved, so the piece we are
+        // Note: this runs *after* the piece has been moved, so the piece we are
         // looking for is in the "to" position
         if let Move::Normal {from, to} = movement {
             if self.piece_on(movement.to()) == &Some(Pawn) {
+                let color = self.turn_color();
                 // This is done *before* the color is updated, hence,
                 // the current turn is the one that played the move
                 // Pawns move in increments (white) or decrements (black) of
                 // 8, so we can use that to detect if it's a double push
-                let color = self.turn_color();
                 if color == White && to - from == 16 {
                     self.en_passant_target = BitBoard::from_square(*from + 8);
-                    self.zobrist_key ^= zobrist::get_key_ep_square(*from + 8);
+                    if self.update_ep_zobrist(Black) {
+                        self.zobrist_key ^= zobrist::get_key_ep_square(*from + 8);
+                    }
                 } else if color == Black && from - to == 16 {
                     self.en_passant_target = BitBoard::from_square(*from - 8);
-                    self.zobrist_key ^= zobrist::get_key_ep_square(*from - 8);
+                    if self.update_ep_zobrist(White) {
+                        self.zobrist_key ^= zobrist::get_key_ep_square(*from - 8);
+                    }
                 }
             }
         }
@@ -397,14 +409,14 @@ impl Board {
         // Then, castling rights
         self.zobrist_key ^= zobrist::get_key_castling(self.castling_info());
 
-        // e.p. square, if it's set...
-        if !self.ep_square().is_empty() {
-            self.zobrist_key ^= zobrist::get_key_ep_square(self.ep_square().piece_indices().next().unwrap())
+        // e.p. square, if it's set and there is a pawn ready to capture it...
+        if self.update_ep_zobrist(self.turn_color()) {
+            self.zobrist_key ^= zobrist::get_key_ep_square(self.ep_square().first_piece_index())
         }
 
-        //...finally, black's turn
-        if self.turn_color() == Black {
-            self.zobrist_key ^= zobrist::get_key_black_turn();
+        //...finally, white's turn
+        if self.turn_color() == White {
+            self.zobrist_key ^= zobrist::get_key_white_turn();
         }
     }
 
@@ -432,6 +444,17 @@ impl Board {
 
     fn piece_on_mut(&mut self, square: u8) -> &mut Option<PieceType> {
         &mut self.piece_on_square[square as usize]
+    }
+
+    fn update_ep_zobrist(&self, color_capturing: Color) -> bool {
+        // Returns whether the current board should have the zobrist
+        // flag for an active e.p. square on. This is only true if
+        // the e.p. square is set, AND there is a pawn of the opposite
+        // color ready to capture it.
+        !self.ep_square().is_empty() && !(
+            EP_ATTACKS[self.ep_square().first_piece_index() as usize] &
+            self.get_pieces(color_capturing).pawns
+        ).is_empty()
     }
 
     fn _perft(&self, depth: usize, multithread: bool) -> u64 {

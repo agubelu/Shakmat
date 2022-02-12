@@ -5,6 +5,5 @@ edition = "2021"
 authors = ["https://github.com/agubelu/"]
 
 [dependencies]
-rand = "0.8.4"
 rayon = "1.5.1"
 serde = { version = "1.0.130", features = ["derive"] }

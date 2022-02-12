@@ -8,3 +8,4 @@ pub static KING_MOVES: [BitBoard; 64] = include!("movetables/king_moves.in");
 pub static KNIGHT_MOVES: [BitBoard; 64] = include!("movetables/knight_moves.in");
 pub static BISHOP_MOVES: [BitBoard; 5248] = include!("movetables/bishop_moves.in");
 pub static ROOK_MOVES: [BitBoard; 102400] = include!("movetables/rook_moves.in");
+pub static EP_ATTACKS: [BitBoard; 64] = include!("movetables/enpassant_attacks.in");
