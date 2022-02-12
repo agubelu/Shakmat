@@ -12,12 +12,11 @@ const TRASPOSITION_TABLE_SIZE: usize = 1 << 22;
 // itself to be inferior, so it encourages drawing when it cannot find a decisive advantage.
 const CONTEMPT: i16 = 0;
 
-// Struct to hold a pair of evaluation and best move. Hopefully this can be removed
-// in the future and make the negamax work with only evaluations, and grab the best
-// move from the PV (TO-DO)
-pub struct NegamaxResult {
-    pub eval: Evaluation,
-    pub best: Option<Move>,
+// Struct to hold a pair of evaluation and best move, so we can return the current evaluation to
+// the front-end in addition to the best move
+pub struct SearchResult {
+    pub score: Evaluation,
+    pub best_move: Option<Move>,
 }
 
 // Struct to hold a pair of (Move, move heuristical value)
@@ -28,18 +27,32 @@ struct RatedMove {
 
 // Wrapper function over the negamax algorithm, returning the best move
 // along with the associated score
-pub fn find_best(board: &Board, max_depth: u8, past_positions: &[u64]) -> NegamaxResult {
+pub fn find_best(board: &Board, max_depth: u8, past_positions: &[u64]) -> SearchResult {
     let trans_table = TTable::new(TRASPOSITION_TABLE_SIZE);
-    let mut res = negamax(board, max_depth, 0, Evaluation::min_val(), Evaluation::max_val(), &trans_table, &mut past_positions.to_vec());
-    // The array of zobrist keys corresponding to all past positions is cloned so that
-    // the search function can take ownership of it, adding and removing new positions
-    // during the search process.
+    let mut score = Evaluation::min_val();
 
+    // Iterative deepening: instead of diving directly into a search of depth `max_depth`,
+    // increase the depth by 1 every time. This may seem counter-intuitive, but it actually
+    // makes it run faster. The reason is that we can use the best move from the previous
+    // search as the temptative best move in this one in the move ordering, which makes
+    // the alpha-beta pruning remove many more branches during the search.
     for depth in 1 ..= max_depth {
-        res = negamax(board, depth, 0, Evaluation::min_val(), Evaluation::max_val(), &trans_table, &mut past_positions.to_vec())
+        // The array of zobrist keys corresponding to all past positions is cloned so that
+        // the search function can take ownership of it, adding and removing new positions
+        // during the search process.
+        let mut history = past_positions.to_vec();
+        score = negamax(board, depth, 0, Evaluation::min_val(), Evaluation::max_val(), &trans_table, &mut history)
     }
 
-    res
+    // The best move will be stored in the corresponding entry in the transposition table.
+    // Because we use an "always-replace" scheme, it is guaranteed that the best
+    // move for the root position will be stored there when the search finishes.
+    let mut best_move = None;
+
+    // The call to tt.get_entry() writes to the best_move parameter
+    trans_table.get_entry(board.zobrist_key(), 0, Evaluation::min_val(), Evaluation::max_val(), &mut best_move);
+
+    SearchResult { score, best_move }
 }
 
 pub fn negamax(
@@ -50,7 +63,7 @@ pub fn negamax(
     beta: Evaluation, 
     trans_table: &TTable,
     past_positions: &mut Vec<u64>
-) -> NegamaxResult {
+) -> Evaluation {
 
     // Check whether the current position is in the trasposition table. Getting the
     // entry itself from the table is unsafe since there will be lockless concurrent
@@ -60,12 +73,12 @@ pub fn negamax(
     let mut tt_move = None;
     let zobrist = board.zobrist_key();
     if let Some(eval) = trans_table.get_entry(zobrist, depth_remaining, alpha, beta, &mut tt_move) {
-        return NegamaxResult::new(eval, tt_move)
+        return eval
     }
 
     // If this is an immediate draw, we don't have to do anything else
     if is_draw_by_repetition(board, current_depth, past_positions) {
-        return NegamaxResult::new(Evaluation::new(CONTEMPT), None);
+        return Evaluation::new(CONTEMPT);
     }
 
     // The current position is not stored, perform the full search from here.
@@ -80,9 +93,7 @@ pub fn negamax(
     // If we are on a leaf node, use the quiesence search to make sure the
     // static evaluation is reliable
     if depth_remaining == 0 {
-        let score = quiesence_search(board, alpha, beta, trans_table);
-        trans_table.write_entry(zobrist, TTEntry::new(zobrist, depth_remaining, score, NodeType::Exact, None));
-        return NegamaxResult::new(score, None);
+        return quiesence_search(board, alpha, beta, trans_table);
     }
 
     let mut best_score = Evaluation::min_val();
@@ -111,14 +122,14 @@ pub fn negamax(
 
         // Since the moves are ordered, only evaluate the first move with a full window
         let next_score = if analyzed_moves == 0 {
-            -negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -alpha, trans_table, past_positions).eval
+            -negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -alpha, trans_table, past_positions)
         } else {
             // Try a minimal window first. If the value falls under [alpha, beta] then use the standard window
-            let mut temptative_score = -negamax(&next_board, depth_remaining - 1, current_depth + 1, (-alpha)-1, -alpha, trans_table, past_positions).eval;
+            let mut temptative_score = -negamax(&next_board, depth_remaining - 1, current_depth + 1, (-alpha)-1, -alpha, trans_table, past_positions);
 
             if temptative_score > alpha && temptative_score < beta {
                 // Do a full evaluation since the position was not significantly worsened
-                temptative_score = -negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -temptative_score, trans_table, past_positions).eval
+                temptative_score = -negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -temptative_score, trans_table, past_positions)
             }
 
             temptative_score
@@ -160,8 +171,7 @@ pub fn negamax(
     // Update the transposition table with the information that we have obtained
     // for this position
     trans_table.write_entry(zobrist, TTEntry::new(zobrist, depth_remaining, best_score, node_type, best_move));
-
-    NegamaxResult::new(best_score, best_move)
+    best_score
 }
 
 // The quiesence search is a simplified version of the negamax search that only
@@ -284,12 +294,6 @@ const fn value_of_capture(piece: PieceType) -> i16 {
         PieceType::Bishop => 300,
         PieceType::Rook => 500,
         PieceType::Queen => 900,
-        PieceType::King => 9999, // Doesn't really happen
-    }
-}
-
-impl NegamaxResult {
-    pub fn new(eval: Evaluation, best: Option<Move>) -> Self {
-        Self { eval, best }
+        PieceType::King => 9999, // Doesn't happen since the king is never captured
     }
 }

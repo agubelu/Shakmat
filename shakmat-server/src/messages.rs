@@ -6,6 +6,7 @@ use rocket::response;
 use rocket::response::{Responder, Response};
 use rocket::request::Request;
 
+use shakmat_engine::SearchResult;
 use shakmat_core::{Move, Color, Board};
 
 // Generic API response with an arbitraty HTTP status code and json payload
@@ -41,8 +42,11 @@ impl ApiResponse {
         Self { status: Status::Ok, payload: json!({"turn_info": turn_info}) }
     }
 
-    pub fn move_suggestion(mv: &Move) -> Self {
-        Self { status: Status::Ok, payload: json!({"move": mv.to_string()}) }
+    pub fn move_suggestion(sr: &SearchResult) -> Self {
+        Self { status: Status::Ok, payload: json!({
+            "move": sr.best_move.unwrap().to_string(),
+            "eval": sr.score.to_string(), 
+        }) }
     }
 
     pub fn deleted() -> Self {

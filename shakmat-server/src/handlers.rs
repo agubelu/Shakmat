@@ -75,9 +75,10 @@ pub fn get_computer_move(state: &StateMutex, engine: &State<ShakmatEngine>, game
     // We drop the lock here so the rather slow process of finding the best
     // move doesn't block all othe requests
     drop(state_lock);
+    let search_result = engine.inner().find_best_move(&board, &past_positions);
 
-    match engine.inner().find_best_move(&board, &past_positions) {
-        Some(mv) => ApiResponse::move_suggestion(&mv),
+    match search_result.best_move {
+        Some(_) => ApiResponse::move_suggestion(&search_result),
         None => ApiResponse::bad_request("No moves available".to_owned()),
     }
 }

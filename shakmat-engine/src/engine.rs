@@ -1,5 +1,6 @@
-use shakmat_core::{Board, Move};
+use shakmat_core::Board;
 use crate::search;
+use crate::search::SearchResult;
 
 pub struct ShakmatEngine {
     // TO-DO: Opening books, config, etc...
@@ -15,10 +16,10 @@ impl ShakmatEngine {
         Self { max_depth: config.max_depth }
     }
 
-    pub fn find_best_move(&self, board: &Board, past_positions: &[u64]) -> Option<Move> {
-        let best = search::find_best(board, self.max_depth, past_positions);
-        println!("Evaluation: {}", best.eval);
-        best.best
+    pub fn find_best_move(&self, board: &Board, past_positions: &[u64]) -> SearchResult {
+        let result = search::find_best(board, self.max_depth, past_positions);
+        println!("Evaluation: {}", result.score);
+        result
     }
 }
 
