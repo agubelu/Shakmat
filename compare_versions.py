@@ -19,6 +19,11 @@ class ShakmatVer:
         resp = rq.post(f"http://127.0.0.1:{self.port}/games").json()
         self.current_game = resp["key"]
 
+    def delete_game(self):
+        resp = rq.delete(f"http://127.0.0.1:{self.port}/games/{self.current_game}")
+        assert resp.status_code == 204
+        self.current_game = None
+
     def make_move(self, move):
         url = f"http://127.0.0.1:{self.port}/games/{self.current_game}/move"
         resp = rq.post(url, json={"move": move})
@@ -49,6 +54,7 @@ class Match:
         self.black.create_game()
 
     def play(self):
+        result = None
         while True:
             (moving_player, other_player) = (self.white, self.black) if self.ply % 2 == 0 \
                                             else (self.black, self.white)
@@ -79,19 +85,25 @@ class Match:
                         # White checkmated black
                         self.white.update_score("white", "win")
                         self.black.update_score("black", "lose")
-                        return "W"
+                        result = "W"
                     else:
                         # Black checkmated white
                         self.white.update_score("white", "lose")
                         self.black.update_score("black", "win")
-                        return "B"
+                        result = "B"
                 else:
                     # Draw
                     self.white.update_score("white", "draw")
                     self.black.update_score("black", "draw")
-                    return "D"
+                    result = "D"
+                
+                break
 
             self.ply += 1
+
+        self.white.delete_game()
+        self.black.delete_game()
+        return result
 
 old_engine = ShakmatVer(OLD_VER["port"], OLD_VER["name"])
 new_engine = ShakmatVer(NEW_VER["port"], NEW_VER["name"])

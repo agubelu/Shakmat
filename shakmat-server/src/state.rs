@@ -32,6 +32,13 @@ impl ServerState {
         self.games.insert(key.clone(), GameData::from_fen(fen)?);
         Ok(key)
     }
+
+    pub fn delete_game(&mut self, key: &str) -> Result<(), String> {
+        match self.games.remove_entry(key) {
+            Some(_) => Ok(()),
+            None => Err("Game not found".to_owned()),
+        }
+    }
     
     pub fn get_turn_info(&self, key: &str) -> Option<TurnInfo> {
         self.games.get(key).map(|gd| TurnInfo::from_board(&gd.board, &gd.previous_positions))

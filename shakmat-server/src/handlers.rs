@@ -11,7 +11,7 @@ use crate::state::ServerState;
 type StateMutex = State<Mutex<ServerState>>;
 
 pub fn get_routes() -> Vec<Route> {
-    routes![create_game, get_turn_info, make_move, get_computer_move]
+    routes![create_game, get_turn_info, make_move, get_computer_move, delete_game]
 }
 
 #[post("/games", data = "<fen>")]
@@ -78,5 +78,14 @@ pub fn get_computer_move(state: &StateMutex, game_id: &str) -> ApiResponse {
     match shakmat_engine::find_best_move(&board, &past_positions) {
         Some(mv) => ApiResponse::move_suggestion(&mv),
         None => ApiResponse::bad_request("No moves available".to_owned()),
+    }
+}
+
+#[delete("/games/<game_id>")]
+pub fn delete_game(state: &StateMutex, game_id: &str) -> ApiResponse {
+    let mut state_lock = state.inner().lock().unwrap();
+    match state_lock.delete_game(game_id) {
+        Ok(()) => ApiResponse::deleted(),
+        Err(msg) => ApiResponse::not_found(msg),
     }
 }

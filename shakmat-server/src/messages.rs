@@ -44,6 +44,10 @@ impl ApiResponse {
     pub fn move_suggestion(mv: &Move) -> Self {
         Self { status: Status::Ok, payload: json!({"move": mv.to_string()}) }
     }
+
+    pub fn deleted() -> Self {
+        Self { status: Status::NoContent, payload: json!({}) }
+    }
 }
 
 // Info for the current turn
