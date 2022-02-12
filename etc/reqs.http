@@ -1,0 +1,20 @@
+@BASE = http://127.0.0.1:8000
+
+###
+
+# @name create
+POST {{BASE}}/games
+
+###
+@gameid = {{create.response.body.key}}
+
+###
+
+GET {{BASE}}/games/{{gameid}}/move_suggestion
+
+###
+
+POST {{BASE}}/games/{{gameid}}/move
+Content-Type: application/json
+
+{"move": "e2e4"}
