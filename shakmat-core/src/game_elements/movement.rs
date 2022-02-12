@@ -5,7 +5,6 @@ use super::{PieceType, Square, PieceType::*};
 use crate::board::{Board, BitBoard};
 
 // Avoid clashes between the core Result and the formatter Result
-type StdResult<T, E> = core::result::Result<T, E>;
 type FmtResult = std::fmt::Result;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -58,6 +57,32 @@ impl Move {
             _ => None // Castling
         }
     }
+
+    pub fn from_notation(pos: &str) -> Result<Self, String> {
+        match pos {
+            "O-O" | "0-0" => Ok(Self::ShortCastle),
+            "O-O-O" | "0-0-0" => Ok(Self::LongCastle),
+            _ if pos.len() >= 4 => {
+                let from = Square::from_notation(&pos[..2])?.square();
+                let to = Square::from_notation(&pos[2..])?.square();
+
+                if pos.len() == 4 {
+                    Ok(Self::Normal{from, to})
+                } else {
+                    let promote_to = match pos[4..].to_lowercase().as_str() {
+                        "q" | "=q" => Queen,
+                        "r" | "=r" => Rook,
+                        "b" | "=b" => Bishop,
+                        "n" | "=n" => Knight,
+                        _  => return Err("Invalid move".to_owned()),
+                    };
+
+                    Ok(Self::PawnPromotion{from, to, promote_to})
+                }
+            },
+            _ => Err("Invalid move".to_owned()),
+        }
+    }
 }
 
 impl Display for Move {
@@ -82,7 +107,7 @@ impl Display for Move {
 
 // Custom serialization and deserialization, following the previous formatting
 impl Serialize for Move {
-    fn serialize<S: Serializer>(&self, serializer: S) -> StdResult<S::Ok, S::Error> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.to_string())
     }
 }

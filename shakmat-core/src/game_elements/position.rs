@@ -23,6 +23,10 @@ impl Square {
         self.square / 8
     }
 
+    pub fn square(&self) -> u8 {
+        self.square
+    }
+
     pub fn as_bitboard(&self) -> BitBoard {
         BitBoard::new(1 << self.square)
     }

@@ -1,6 +1,7 @@
 use std::sync::Mutex;
 use std::mem::drop;
 
+use shakmat_core::Move;
 use rocket::serde::json::Json;
 use rocket::{Route, State};
 
@@ -46,13 +47,9 @@ pub fn get_turn_info(state: &StateMutex, game_id: &str) -> ApiResponse {
 #[post("/games/<game_id>/move", data = "<move>")]
 pub fn make_move(state: &StateMutex, game_id: &str, r#move: Json<MoveData>) -> ApiResponse {
     let mut state_lock = state.inner().lock().unwrap();
-
-    let mv = match state_lock.get_game_moves(game_id) {
-        None => return ApiResponse::not_found("Game not found".to_owned()),
-        Some(map) => match map.get(&r#move.r#move.to_lowercase()) {
-            Some(movement) => *movement,
-            None => return ApiResponse::bad_request("Illegal move".to_owned()),
-        }
+    let mv = match Move::from_notation(&r#move.r#move) {
+        Ok(m) => m,
+        Err(msg) => return ApiResponse::bad_request(msg), 
     };
 
     match state_lock.make_move(game_id, mv) {
