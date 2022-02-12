@@ -3,7 +3,7 @@ use shakmat_core::Move;
 
 use crate::evaluation::Evaluation;
 
-use super::{TTEntry, TTData, NodeType};
+use super::{TTEntry, NodeType};
 
 // Operations with the trasposition table are unsafe, as it is intended for
 // lock-less multithreaded use, and data races will occur. It is up to us

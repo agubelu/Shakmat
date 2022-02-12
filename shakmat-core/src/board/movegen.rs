@@ -54,7 +54,6 @@ pub fn get_pseudolegal_moves(board: &Board, color: Color) -> Vec<Move> {
     // last rank to promotion moves
     let mut pawn_moves = Vec::with_capacity(50);
     let ep_square = board.ep_square();
-    let ep_index = ep_square.get_u64().trailing_zeros() as u8;
     pieces.pawns.piece_indices().for_each(|from| {
         // Captures, which must target either an enemy piece or the e.p. square
         let cap_bb = magic::pawn_attacks(from as usize, color) & (enemy_pieces | ep_square);
@@ -104,8 +103,6 @@ pub fn get_pseudolegal_caps_proms(board: &Board) -> Vec<Move> {
     let mut moves = generate_normal_moves(pieces, all_pieces, enemy_pieces);
 
     // Generate capturing pawn moves and promotions
-    let ep_square = board.ep_square();
-    let ep_index = ep_square.get_u64().trailing_zeros() as u8;
     let prom_rank = match color {
         White => WHITE_PROMOTION_RANK,
         Black => BLACK_PROMOTION_RANK,

@@ -44,8 +44,4 @@ impl TTData {
     pub fn node_type(&self) -> NodeType {
         self.node_type
     }
-
-    pub fn best_move(&self) -> &Option<Move> {
-        &self.best_move
-    }
 }
