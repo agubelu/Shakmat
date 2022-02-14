@@ -31,6 +31,7 @@ pub fn evaluate_position(board: &Board) -> Evaluation {
     calc_positional_score(&mut eval_data);
     calc_control_score(&mut eval_data);
     calc_bishop_pair_bonus(&mut eval_data);
+    calc_tempo(&mut eval_data);
     eval_data.compute_score()
 }
 
@@ -100,6 +101,12 @@ fn calc_bishop_pair_bonus(eval_data: &mut EvalData) {
     eval_data.score_endgame += bonus_late * white_pair - bonus_late * black_pair;
 }
 
+fn calc_tempo(eval_data: &mut EvalData) {
+    // Small bonus for having the right to move, only
+    // in the early game
+    eval_data.score_opening += 28;
+}
+
 fn pos_score(bb: BitBoard, pos_table: &[i16]) -> i16 {
     bb.piece_indices().map(|i| pos_table[i as usize]).sum()
 }
@@ -163,6 +170,14 @@ impl Evaluation {
     pub fn score(&self) -> i16 {
         self.score
     }
+
+    pub fn is_positive_mate(&self) -> bool {
+        *self >= Self::max_val() - 100
+    }
+
+    pub fn is_negative_mate(&self) -> bool {
+        *self <= Self::min_val() + 100
+    }
 }
 
 impl Neg for Evaluation {
@@ -179,8 +194,6 @@ impl Sub<i16> for Evaluation {
     fn sub(self, rhs: i16) -> Self::Output {
         Self::new(self.score - rhs)
     }
-
-    
 }
 
 impl Add<i16> for Evaluation {
@@ -193,9 +206,9 @@ impl Add<i16> for Evaluation {
 
 impl Display for Evaluation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.score() > i16::MAX - 100 {
+        if self.is_positive_mate() {
             write!(f, "M{}", i16::MAX - self.score())
-        } else if self.score() < i16::MIN + 100 {
+        } else if self.is_negative_mate() {
             write!(f, "-M{}", self.score() - i16::MIN - 1)
         } else {
             write!(f, "{:+.2}", self.score() as f32 / 100.0)

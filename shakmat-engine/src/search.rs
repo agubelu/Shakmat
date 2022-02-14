@@ -31,17 +31,41 @@ pub fn find_best(board: &Board, max_depth: u8, past_positions: &[u64]) -> Search
     let trans_table = TTable::new(TRASPOSITION_TABLE_SIZE);
     let mut score = Evaluation::min_val();
 
+    let mut alpha = Evaluation::min_val();
+    let mut beta = Evaluation::max_val();
+    let window = 30;
+
     // Iterative deepening: instead of diving directly into a search of depth `max_depth`,
     // increase the depth by 1 every time. This may seem counter-intuitive, but it actually
     // makes it run faster. The reason is that we can use the best move from the previous
     // search as the temptative best move in this one in the move ordering, which makes
     // the alpha-beta pruning remove many more branches during the search.
-    for depth in 1 ..= max_depth {
+    let mut depth = 1;
+    while depth <= max_depth {
         // The array of zobrist keys corresponding to all past positions is cloned so that
         // the search function can take ownership of it, adding and removing new positions
         // during the search process.
         let mut history = past_positions.to_vec();
-        score = negamax(board, depth, 0, Evaluation::min_val(), Evaluation::max_val(), &trans_table, &mut history)
+        score = negamax(board, depth, 0, alpha, beta, &trans_table, &mut history);
+
+        // Aspiration window: TO-DO comment
+        if score <= alpha {
+            println!("Alpha fail, depth {}", depth);
+            alpha = Evaluation::min_val();
+            continue;
+        }
+
+        if score >= beta {
+            println!("Beta fail, depth {}", depth);
+            beta = Evaluation::max_val();
+            continue;
+        }
+
+        alpha = score - window;
+        beta = score + window;
+        
+        println!("Depth {}, score {}", depth, score);
+        depth += 1;
     }
 
     // The best move will be stored in the corresponding entry in the transposition table.
@@ -77,7 +101,9 @@ pub fn negamax(
     }
 
     // If this is an immediate draw, we don't have to do anything else
-    if is_draw_by_repetition(board, current_depth, past_positions) {
+    if is_draw_by_repetition(board, current_depth, past_positions) || 
+       board.fifty_move_rule_counter() >= 100 || 
+       board.is_draw_by_material() {
         return Evaluation::new(CONTEMPT);
     }
 
@@ -139,17 +165,24 @@ pub fn negamax(
         past_positions.pop();
         analyzed_moves += 1;
 
+        // Update alpha, beta and the scores
         if next_score > best_score {
+            // This move improves our previous score, update the score
+            // and the current new move
             best_move = Some(mv);
             best_score = next_score;
         }
 
         if best_score > alpha {
+            // This move improves the past best score we can get in the search
             alpha = best_score;
             node_type = NodeType::Exact;
         }
 
         if best_score >= beta {
+            // This move is "too good", its score is higher than what our
+            // opponent can guarantee earlier in the search. So, we assume
+            // that they will avoid this position, and stop evaluating it.
             node_type = NodeType::BetaCutoff;
             break;
         }

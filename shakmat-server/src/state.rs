@@ -52,16 +52,15 @@ impl ServerState {
         self.games.get(key).map(|gd| &gd.previous_positions)
     }
     
-    // It is assumed that the move will always be legal, as the handler
-    // will refuse to make it if it is not in the moves map for the board,
-    // and that the key always exists
+    // It is assumed that the key always exists, since it is needed to get
+    // the game data in the first place
     pub fn make_move(&mut self, key: &str, movement: Move) -> Result<(), String> {
         let game = match self.games.get(key) {
             Some(g) => g,
             None => return Err("Game not found".to_owned()),
         };
 
-        game.board.make_move(&movement, false)
+        game.board.make_move(&movement, true) // Check the legality of this move
             .map(move |new_board| {
                 println!("{}", new_board);
                 self.get_game_mut(key).board = new_board;

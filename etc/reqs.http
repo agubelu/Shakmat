@@ -4,6 +4,9 @@
 
 # @name create
 POST {{BASE}}/games
+Content-Type: application/json
+
+{"fen": "r3kb1r/1q1n1ppp/pp1ppn2/8/2PNP3/1PN2PP1/P5KP/R1BQR3 b kq - 0 13"}
 
 ###
 @gameid = {{create.response.body.key}}
@@ -17,4 +20,4 @@ GET {{BASE}}/games/{{gameid}}/move_suggestion
 POST {{BASE}}/games/{{gameid}}/move
 Content-Type: application/json
 
-{"move": "e2e4"}
+{"move": "e2f1"}
