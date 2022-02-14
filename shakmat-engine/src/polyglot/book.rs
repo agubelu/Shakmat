@@ -38,16 +38,30 @@ impl OpeningBook {
             book.entry(zobrist).or_default().push(WeightedMove{ mv, weight });
         }
 
+        // Sort all the move lists by decreasing weight, so we avoid having to do
+        // that during the search
+        book.values_mut().for_each(|ls| ls.sort_by(|a, b| b.weight.cmp(&a.weight)));
+
         Self { book }
     }
 
-    pub fn get_move(&self, board: &Board) -> Option<Move> {
+    pub fn get_move(&self, board: &Board, only_best: bool) -> Option<Move> {
+        // TO-DO: Transform castling moves into the equivalent normal move
+        // if castling is not legal!!
         self.book.get(&board.zobrist_key()).map(|ls| {
-            // We have a hit from the book, grab a random entry
-            // according to its weight
-            let dist = WeightedIndex::new(ls.iter().map(|entry| entry.weight)).unwrap();
-            let mut rng = thread_rng();
-            ls[dist.sample(&mut rng)].mv
+            // We have a hit from the book!
+
+            // If we are instructed to only return the best move, return the
+            // first move in the list, since it is sorted
+            let index = if only_best {
+                0
+            } else {
+                // Otherwise, get a random move conditioned to their respective weights
+                let dist = WeightedIndex::new(ls.iter().map(|entry| entry.weight)).unwrap();
+                dist.sample(&mut thread_rng())
+            };
+            
+            ls[index].mv
         })
     }
 }

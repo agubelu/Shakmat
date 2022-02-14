@@ -50,21 +50,17 @@ pub fn find_best(board: &Board, max_depth: u8, past_positions: &[u64]) -> Search
 
         // Aspiration window: TO-DO comment
         if score <= alpha {
-            println!("Alpha fail, depth {}", depth);
             alpha = Evaluation::min_val();
             continue;
         }
 
         if score >= beta {
-            println!("Beta fail, depth {}", depth);
             beta = Evaluation::max_val();
             continue;
         }
 
         alpha = score - window;
         beta = score + window;
-        
-        println!("Depth {}, score {}", depth, score);
         depth += 1;
     }
 
