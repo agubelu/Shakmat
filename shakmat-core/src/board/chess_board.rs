@@ -120,11 +120,19 @@ impl Board {
     }
 
     pub fn pseudolegal_moves(&self) -> Vec<Move> {
-        movegen::get_pseudolegal_moves(self, self.turn_color())
+        if self.is_draw() {
+            vec![]
+        } else {
+            movegen::get_pseudolegal_moves(self, self.turn_color())
+        }
     }
 
     pub fn pseudolegal_caps(&self) -> Vec<Move> {
-        movegen::get_pseudolegal_caps_proms(self)
+        if self.is_draw() {
+            vec![]
+        } else {
+            movegen::get_pseudolegal_caps_proms(self)
+        }
     }
 
     pub fn legal_moves(&self) -> Vec<Move> {
@@ -443,6 +451,10 @@ impl Board {
             EP_ATTACKS[self.ep_square().first_piece_index() as usize] &
             self.get_pieces(color_capturing).pawns
         ).is_empty()
+    }
+
+    fn is_draw(&self) -> bool {
+        self.fifty_move_rule_counter() >= 100 || self.is_draw_by_material()
     }
 
     fn _perft(&self, depth: usize, multithread: bool) -> u64 {

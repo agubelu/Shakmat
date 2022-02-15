@@ -97,9 +97,7 @@ pub fn negamax(
     }
 
     // If this is an immediate draw, we don't have to do anything else
-    if is_draw_by_repetition(board, current_depth, past_positions) || 
-       board.fifty_move_rule_counter() >= 100 || 
-       board.is_draw_by_material() {
+    if is_draw_by_repetition(board, current_depth, past_positions) {
         return Evaluation::new(CONTEMPT);
     }
 
