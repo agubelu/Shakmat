@@ -63,8 +63,8 @@ impl Move {
             "O-O" | "0-0" => Ok(Self::ShortCastle),
             "O-O-O" | "0-0-0" => Ok(Self::LongCastle),
             _ if pos.len() >= 4 => {
-                let from = Square::from_notation(&pos[..2])?.square();
-                let to = Square::from_notation(&pos[2..])?.square();
+                let from = Square::from_notation(&pos[0..2])?.square();
+                let to = Square::from_notation(&pos[2..4])?.square();
 
                 if pos.len() == 4 {
                     Ok(Self::Normal{from, to})
