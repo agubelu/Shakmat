@@ -84,7 +84,6 @@ pub fn negamax(
     trans_table: &TTable,
     past_positions: &mut Vec<u64>
 ) -> Evaluation {
-
     // Check whether the current position is in the trasposition table. Getting the
     // entry itself from the table is unsafe since there will be lockless concurrent
     // access (in the future), however, the .get_entry() method does some sanity
@@ -128,7 +127,7 @@ pub fn negamax(
     let mut analyzed_moves = 0;
 
     for RatedMove{mv, ..} in order_moves(moves, board, tt_move) {
-        let next_board = board.make_move(&mv, false).unwrap();
+        let next_board = board.make_move(&mv);
 
         // This is a pseudo-legal move, we must make sure that the side moving is not in check.
         // Castling moves are always legal since their legality is checked in move generation,
@@ -220,7 +219,7 @@ fn quiesence_search(board: &Board, mut alpha: Evaluation, beta: Evaluation, tran
         // As in the normal search, we are using pseudolegal moves, so we must make sure that
         // the moving side is not in check. Castling moves are not generated now so we
         // don't have to worry about them
-        let next_board = board.make_move(&mv, false).unwrap();
+        let next_board = board.make_move(&mv);
         if next_board.is_check(board.turn_color()) {
             continue;
         }

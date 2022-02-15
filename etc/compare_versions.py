@@ -5,7 +5,7 @@ from datetime import datetime
 from json import dumps
 
 OLD_VER = {"port": 8000, "name": "Baseline"}
-NEW_VER = {"port": 8001, "name": "PVS7"}
+NEW_VER = {"port": 9000, "name": "+AW"}
 
 class ShakmatVer:
     def __init__(self, port, name):
@@ -27,6 +27,9 @@ class ShakmatVer:
     def make_move(self, move):
         url = f"http://127.0.0.1:{self.port}/games/{self.current_game}/move"
         resp = rq.post(url, json={"move": move})
+        if resp.status_code != 200: 
+            print(move)
+            print(resp.text)
         assert resp.status_code == 200
         return resp.json()["turn_info"]
 
@@ -73,11 +76,15 @@ class Match:
 
                 moving_player.update_moving_time(self.ply, elapsed)
             
-            # Make the move on both sides
-            moving_player.make_move(move)
-            turn_info = other_player.make_move(move)
-
-            if not turn_info["moves"]:
+            if move:
+                # Make the move on both sides
+                moving_player.make_move(move)
+                turn_info = other_player.make_move(move)
+                self.ply += 1
+            else:
+                turn_info = {"moves": []}
+            
+            if not turn_info["moves"] or not move:
                 # No moves available, check whether this is checkmate or a draw
                 if turn_info["in_check"]:
                     # Checkmate
@@ -99,8 +106,6 @@ class Match:
                 
                 break
 
-            self.ply += 1
-
         self.white.delete_game()
         self.black.delete_game()
         return result
@@ -108,19 +113,18 @@ class Match:
 old_engine = ShakmatVer(OLD_VER["port"], OLD_VER["name"])
 new_engine = ShakmatVer(NEW_VER["port"], NEW_VER["name"])
 
-with open("openings.txt", "r") as f:
-    for i, line in enumerate(f, start=1):
-        opening_line = line.strip().split(" ")
+openings = [line.strip().split(" ") for line in open("openings.txt", "r").readlines()][1:]
 
-        print(f"Opening {i}, game 1... ", end="", flush=True)
-        res = Match(old_engine, new_engine, opening_line).play()
-        d = {"W": OLD_VER["name"], "B": NEW_VER["name"], "D": "Draw"}
-        print(d[res], flush=True)
+for i, opening_line in enumerate(openings, start=1):
+    print(f"Opening {i}, game 1... ", end="", flush=True)
+    res = Match(old_engine, new_engine, opening_line).play()
+    d = {"W": OLD_VER["name"], "B": NEW_VER["name"], "D": "Draw"}
+    print(d[res], flush=True)
 
-        print(f"Opening {i}, game 2... ", end="", flush=True)
-        res = Match(new_engine, old_engine, opening_line).play()
-        d = {"B": OLD_VER["name"], "W": NEW_VER["name"], "D": "Draw"}
-        print(d[res], flush=True)
+    print(f"Opening {i}, game 2... ", end="", flush=True)
+    res = Match(new_engine, old_engine, opening_line).play()
+    d = {"B": OLD_VER["name"], "W": NEW_VER["name"], "D": "Draw"}
+    print(d[res], flush=True)
 
 with open("scores.json", "w") as f:
     f.write(dumps({OLD_VER["name"]: old_engine.scores, NEW_VER["name"]: new_engine.scores}))

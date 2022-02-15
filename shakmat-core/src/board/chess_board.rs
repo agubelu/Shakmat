@@ -67,17 +67,18 @@ impl Board {
         Ok(board)
     }
 
-    pub fn make_move(&self, movement: &Move, check_legality: bool) -> Result<Self, String> {
-        if check_legality {
-            // This move was received from the user, check that it is indeed legal
-            // We do this by making sure it exists in the list of allowed moves
-            // Even though we generate all the moves just to check, this is only
-            // done for user-provided moves. The moves made by the engine when
-            // it is analyzing a position bypass this check
-            if !self.legal_moves().contains(movement) {
-                return Err("Illegal move".to_owned())
-            }
-        }
+    pub fn is_legal_move(&self, movement: &Move) -> bool {
+        // This move was received from the user, check that it is indeed legal
+        // We do this by making sure it exists in the list of allowed moves
+        // Even though we generate all the moves just to check, this is only
+        // done for user-provided moves. The moves made by the engine when
+        // it is analyzing a position bypass this check
+        self.legal_moves().contains(movement)
+    }
+
+    // Make a given move and return a new move, assuming that the move is legal
+    // Moves provided by the user should always be checked using .is_legal_move() first
+    pub fn make_move(&self, movement: &Move) -> Self {
         // Copy the current board and make the changes on it
         let mut new_board = *self;
 
@@ -116,7 +117,7 @@ impl Board {
 
         new_board.update_aux_bitboards();
         new_board.plies += 1;
-        Ok(new_board)
+        new_board
     }
 
     pub fn pseudolegal_moves(&self) -> Vec<Move> {
@@ -138,7 +139,7 @@ impl Board {
     pub fn legal_moves(&self) -> Vec<Move> {
         self.pseudolegal_moves().into_iter()
             .filter(|mv| matches!(mv, Move::ShortCastle | Move::LongCastle) ||
-                         !self.make_move(mv, false).unwrap().is_check(self.turn_color())
+                         !self.make_move(mv).is_check(self.turn_color())
             )
             .collect()
     }
@@ -466,7 +467,7 @@ impl Board {
 
         if multithread {
             pseudo_moves.into_par_iter().filter_map(|mv| {
-                let new_board = self.make_move(&mv, false).unwrap();
+                let new_board = self.make_move(&mv);
                 if matches!(mv, Move::LongCastle | Move::ShortCastle) || !new_board.is_check(self.turn_color()) {
                     Some(new_board._perft(depth - 1, false))
                 } else {
@@ -475,7 +476,7 @@ impl Board {
             }).sum()
         } else {
             pseudo_moves.into_iter().filter_map(|mv| {
-                let new_board = self.make_move(&mv, false).unwrap();
+                let new_board = self.make_move(&mv);
                 if matches!(mv, Move::LongCastle | Move::ShortCastle) || !new_board.is_check(self.turn_color()) {
                     Some(new_board._perft(depth - 1, false))
                 } else {

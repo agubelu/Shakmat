@@ -6,7 +6,7 @@
 POST {{BASE}}/games
 Content-Type: application/json
 
-{"fen": "r3kb1r/1q1n1ppp/pp1ppn2/8/2PNP3/1PN2PP1/P5KP/R1BQR3 b kq - 0 13"}
+{"fen": "r3k2r/ppp2pp1/3p1q1p/2bbp3/2P1P3/3Q1N2/PPP2PPP/R4RK1 w kq - 0 5"}
 
 ###
 @gameid = {{create.response.body.key}}

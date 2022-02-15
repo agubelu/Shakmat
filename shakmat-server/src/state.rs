@@ -60,12 +60,19 @@ impl ServerState {
             None => return Err("Game not found".to_owned()),
         };
 
-        game.board.make_move(&movement, true) // Check the legality of this move
-            .map(move |new_board| {
-                println!("{}", new_board);
-                self.get_game_mut(key).board = new_board;
-                self.get_game_mut(key).previous_positions.push(new_board.zobrist_key());
-            })
+        // Check whether the move is legal
+        if !game.board.is_legal_move(&movement) {
+            return Err("Illegal move".to_owned());
+        }
+
+        // If it is, apply the new move and replace the current board
+        let new_board = game.board.make_move(&movement);
+        let mut game_state = self.get_game_mut(key);
+        game_state.board = new_board;
+        game_state.previous_positions.push(new_board.zobrist_key());
+
+        println!("{}", new_board);
+        Ok(())
     }
 
     // Mutably gets the GameData entry associated to a key that is assumed to exist
