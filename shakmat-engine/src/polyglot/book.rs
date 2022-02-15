@@ -61,7 +61,24 @@ impl OpeningBook {
                 dist.sample(&mut thread_rng())
             };
             
-            ls[index].mv
+            let mut mv = ls[index].mv;
+
+            // There seems to be some disparity in the way castling moves are
+            // stored in the book. If the piece to move is the king, and it's
+            // moving two squares to the left or the right, transform that move
+            // into a castling move.
+            if let Move::Normal{from, to} = mv {
+                if let Some(King) = board.piece_on(from) {
+                    // Ugly nested ifs because if-let cant be combined yet :<
+                    if to == from - 2 {
+                        mv = Move::ShortCastle;
+                    } else if to == from + 2 {
+                        mv = Move::LongCastle;
+                    }
+                }
+            }
+
+            mv
         })
     }
 }
