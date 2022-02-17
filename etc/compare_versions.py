@@ -3,9 +3,10 @@
 import requests as rq
 from datetime import datetime
 from json import dumps
+import sys
 
-OLD_VER = {"port": 8000, "name": "Baseline"}
-NEW_VER = {"port": 9000, "name": "+AW"}
+OLD_VER = {"port": int(sys.argv[2]), "name": sys.argv[1]}
+NEW_VER = {"port":  int(sys.argv[4]), "name": sys.argv[3]}
 
 class ShakmatVer:
     def __init__(self, port, name):
