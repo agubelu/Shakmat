@@ -1,8 +1,7 @@
 A collection of ideas and things I want to implement so I dont forget
 
 # Must do
-- Killer moves
-- Better move ordering (last captured, killers...)
+- Endgame tablebases
 - Search struct to store info during the search
 - Null move
 - Time management
@@ -14,6 +13,7 @@ A collection of ideas and things I want to implement so I dont forget
 - Efficient move generator for checks (must keep track of pins, checkers...)
 
 # Ideas
+- Check if unmake move is faster than copy
 - Web interface updated in real time for the comparison script
 - Check if using bitboards to detect if a move is a capture is faster than the array access
 - Check if `const fn` improves something for things like check detection
