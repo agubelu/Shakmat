@@ -16,6 +16,11 @@ pub enum Move {
 }
 
 impl Move {
+    pub fn empty() -> Self {
+        // An invalid move, just to use as placeholder and avoid Options
+        Self::Normal { from: 0, to: 0 }
+    }
+
     pub fn to(&self) -> u8 {
         match self {
             Self::Normal { to, .. } => *to,
@@ -35,6 +40,7 @@ impl Move {
     pub fn is_capture(&self, board: &Board) -> bool {
         // A move is a capture if the destination square is occupied,
         // of if it's an en passant pawn capture
+        // TO-DO: Check if this is faster than using board.piece_on()
         match self {
             Self::Normal {to, ..} => !(BitBoard::from_square(*to) & (board.get_all_bitboard() | board.ep_square())).is_empty(),
             Self::PawnPromotion {to, ..} => !(BitBoard::from_square(*to) & board.get_all_bitboard()).is_empty(),

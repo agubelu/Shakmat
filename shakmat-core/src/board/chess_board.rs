@@ -23,6 +23,7 @@ pub struct Board {
     all_blacks: BitBoard,
     all_pieces: BitBoard,
     piece_on_square: [Option<PieceType>; 64],
+    last_moved: u8,
     black_attacks: BitBoard,
     white_attacks: BitBoard,
     zobrist_key: u64,
@@ -58,6 +59,7 @@ impl Board {
             piece_on_square: fen_info.piece_on_square,
             black_attacks: BitBoard::default(),
             white_attacks: BitBoard::default(),
+            last_moved: u8::MAX, // We don't know which piece was the last to move
             zobrist_key: 0,
             plies
         };
@@ -223,6 +225,10 @@ impl Board {
         }
     }
 
+    pub fn last_moved(&self) -> u8 {
+        self.last_moved
+    }
+
     pub fn perft(&self, depth: usize) -> u64 {
         self._perft(depth, true)
     }
@@ -241,7 +247,6 @@ impl Board {
         let (moving_color, enemy_color) = (self.turn_color(), !self.turn_color());
         let piece_moving = self.piece_on(movement.from()).unwrap();
         let enemy_pieces = self.get_color_bitboard(enemy_color);
-
         let mut captured_piece = None;
 
         // If there is a piece in the destination square, remove it
@@ -304,6 +309,9 @@ impl Board {
         self.zobrist_key ^= zobrist::get_key_castling(self.castling_info());
         self.update_castling_rights(movement);
         self.zobrist_key ^= zobrist::get_key_castling(self.castling_info());
+
+        // Update the last moved piece
+        self.last_moved = movement.to();
     }
 
     fn castle(&mut self, movement: &Move) {

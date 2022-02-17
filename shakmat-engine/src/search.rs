@@ -1,6 +1,7 @@
-use shakmat_core::{Board, Move, PieceType};
+use shakmat_core::{Board, Move};
 
 use crate::evaluation::{evaluate_position, Evaluation};
+use crate::move_ordering::{order_moves, RatedMove};
 use crate::trasposition::{TTable, TTEntry, NodeType};
 
 // Number of entries of the trasposition table.
@@ -12,6 +13,15 @@ const TRASPOSITION_TABLE_SIZE: usize = 1 << 22;
 // itself to be inferior, so it encourages drawing when it cannot find a decisive advantage.
 const CONTEMPT: i16 = 0;
 
+// The maximum depth that will be reached under any circumstances
+const MAX_DEPTH: usize = 100;
+
+// Number of killer moves to store in each ply
+const MAX_KILLERS: usize = 2;
+
+// Typedef for the killer moves table
+pub type Killers = [[Move; MAX_KILLERS]; MAX_DEPTH];
+
 // Struct to hold a pair of evaluation and best move, so we can return the current evaluation to
 // the front-end in addition to the best move
 pub struct SearchResult {
@@ -19,16 +29,12 @@ pub struct SearchResult {
     pub best_move: Option<Move>,
 }
 
-// Struct to hold a pair of (Move, move heuristical value)
-struct RatedMove {
-    pub mv: Move,
-    pub score: i16
-}
-
 // Wrapper function over the negamax algorithm, returning the best move
 // along with the associated score
 pub fn find_best(board: &Board, max_depth: u8, past_positions: &[u64]) -> SearchResult {
+    // Refactor all of this to have a Search struct in the future...
     let trans_table = TTable::new(TRASPOSITION_TABLE_SIZE);
+    let mut killers = [[Move::empty(); MAX_KILLERS]; MAX_DEPTH];
     let mut score = Evaluation::min_val();
 
     let mut alpha = Evaluation::min_val();
@@ -46,9 +52,13 @@ pub fn find_best(board: &Board, max_depth: u8, past_positions: &[u64]) -> Search
         // the search function can take ownership of it, adding and removing new positions
         // during the search process.
         let mut history = past_positions.to_vec();
-        score = negamax(board, depth, 0, alpha, beta, &trans_table, &mut history);
+        score = negamax(board, depth, 0, alpha, beta, &trans_table, &mut history, &mut killers);
 
-        // Aspiration window: TO-DO comment
+        // Aspiration windows: the score is unlikely to change a lot between iterations,
+        // so we use a window margin around the last score to use as alpha and beta,
+        // hoping that this will cause more cutoffs. However, if the score ends up
+        // under alpha or over beta, then we must search again using the full window
+        // size as the search result is not reliable.
         if score <= alpha {
             alpha = Evaluation::min_val();
             continue;
@@ -82,7 +92,8 @@ pub fn negamax(
     mut alpha: Evaluation,
     beta: Evaluation, 
     trans_table: &TTable,
-    past_positions: &mut Vec<u64>
+    past_positions: &mut Vec<u64>,
+    killers: &mut Killers
 ) -> Evaluation {
     // Check whether the current position is in the trasposition table. Getting the
     // entry itself from the table is unsafe since there will be lockless concurrent
@@ -112,7 +123,7 @@ pub fn negamax(
     // If we are on a leaf node, use the quiesence search to make sure the
     // static evaluation is reliable
     if depth_remaining == 0 {
-        return quiesence_search(board, alpha, beta, trans_table);
+        return quiesence_search(board, current_depth, alpha, beta, trans_table, killers);
     }
 
     let mut best_score = Evaluation::min_val();
@@ -126,7 +137,7 @@ pub fn negamax(
 
     let mut analyzed_moves = 0;
 
-    for RatedMove{mv, ..} in order_moves(moves, board, tt_move) {
+    for RatedMove{mv, ..} in order_moves(moves, board, tt_move, &killers[current_depth as usize]) {
         let next_board = board.make_move(&mv);
 
         // This is a pseudo-legal move, we must make sure that the side moving is not in check.
@@ -141,14 +152,14 @@ pub fn negamax(
 
         // Since the moves are ordered, only evaluate the first move with a full window
         let next_score = if analyzed_moves == 0 {
-            -negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -alpha, trans_table, past_positions)
+            -negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -alpha, trans_table, past_positions, killers)
         } else {
             // Try a minimal window first. If the value falls under [alpha, beta] then use the standard window
-            let mut temptative_score = -negamax(&next_board, depth_remaining - 1, current_depth + 1, (-alpha)-1, -alpha, trans_table, past_positions);
+            let mut temptative_score = -negamax(&next_board, depth_remaining - 1, current_depth + 1, (-alpha)-1, -alpha, trans_table, past_positions, killers);
 
             if temptative_score > alpha && temptative_score < beta {
                 // Do a full evaluation since the position was not significantly worsened
-                temptative_score = -negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -temptative_score, trans_table, past_positions)
+                temptative_score = -negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -temptative_score, trans_table, past_positions, killers)
             }
 
             temptative_score
@@ -177,12 +188,17 @@ pub fn negamax(
             // opponent can guarantee earlier in the search. So, we assume
             // that they will avoid this position, and stop evaluating it.
             node_type = NodeType::BetaCutoff;
+
+            // Check if the current move is a killer move, and in that case,
+            // store it. Note that we must pass the *previous* board, to
+            // determine if the move was a capture
+            store_possible_killer(current_depth, board, mv, killers);
             break;
         }
     }
 
-    // If the evaluation hasn't changed from the worst possible one, no legal moves
-    // are available. Check whether this is a checkmate or a stalemate and assign
+    // If we have no best move, no legal moves  are available. 
+    // Check whether this is a checkmate or a draw, and assign
     // the corresponding score.
     if best_move.is_none() {
         best_score = if board.is_check(color_moving) {
@@ -204,7 +220,7 @@ pub fn negamax(
 // expands captures. This runs in terminal nodes in the standard search, and mitigates
 // the horizon effect by making sure that we are not misevaluating a position where
 // a piece is hanging and can be easily captured in the next move.
-fn quiesence_search(board: &Board, mut alpha: Evaluation, beta: Evaluation, trans_table: &TTable) -> Evaluation {
+fn quiesence_search(board: &Board, current_depth: u8, mut alpha: Evaluation, beta: Evaluation, trans_table: &TTable, killers: &mut Killers) -> Evaluation {
     let static_score = evaluate_position(board);
 
     if static_score >= beta {
@@ -215,7 +231,7 @@ fn quiesence_search(board: &Board, mut alpha: Evaluation, beta: Evaluation, tran
 
     // Only consider moves that are captures or pawn promotions
     let moves = board.pseudolegal_caps();
-    for RatedMove{mv, ..} in order_moves(moves, board, None) {
+    for RatedMove{mv, ..} in order_moves(moves, board, None, &killers[current_depth as usize]) {
         // As in the normal search, we are using pseudolegal moves, so we must make sure that
         // the moving side is not in check. Castling moves are not generated now so we
         // don't have to worry about them
@@ -224,7 +240,7 @@ fn quiesence_search(board: &Board, mut alpha: Evaluation, beta: Evaluation, tran
             continue;
         }
 
-        let next_score = -quiesence_search(&next_board, -beta, -alpha, trans_table);
+        let next_score = -quiesence_search(&next_board, current_depth + 1, -beta, -alpha, trans_table, killers);
 
         if next_score >= beta {
             return beta;
@@ -234,26 +250,6 @@ fn quiesence_search(board: &Board, mut alpha: Evaluation, beta: Evaluation, tran
     }
 
     alpha
-}
-
-fn order_moves(moves: Vec<Move>, board: &Board, tt_move: Option<Move>) -> Vec<RatedMove> {
-    let mut rated_moves: Vec<RatedMove> = moves.into_iter().map(|mv| rate_move(mv, tt_move, board)).collect();
-    rated_moves.sort_unstable_by_key(|rm| -rm.score);
-    rated_moves
-}
-
-// Takes a move by value and returns a struct with that move
-// and its heuristic value. PV moves are rated the highest, then captures
-fn rate_move(mv: Move, pv_move: Option<Move>, board: &Board) -> RatedMove {
-    let score = if pv_move == Some(mv) {
-        10_000 // PV move, should be evaluated first
-    } else if let Some(captured) = mv.piece_captured(board) {
-        value_of_capture(captured) - value_of_attacker(mv.piece_moving(board))
-    } else {
-        0
-    };
-
-    RatedMove { mv, score }
 }
 
 // Determines if a given position is a draw by repetition considering the previous history.
@@ -299,27 +295,14 @@ pub fn is_draw_by_repetition(board: &Board, cur_depth: u8, history: &[u64]) -> b
     false
 }
 
-// Most Valuable Victim - Least Valuable Aggressor (MVV-LVA)
-// Attempts to provide a heuristic for capturing moves by
-// capturing with the least valuable piece
-const fn value_of_attacker(piece: PieceType) -> i16 {
-    match piece {
-        PieceType::Pawn => 10,
-        PieceType::Knight => 30,
-        PieceType::Bishop => 30,
-        PieceType::Rook => 50,
-        PieceType::Queen => 90,
-        PieceType::King => 99,
-    }
-}
-
-const fn value_of_capture(piece: PieceType) -> i16 {
-    match piece {
-        PieceType::Pawn => 100,
-        PieceType::Knight => 300,
-        PieceType::Bishop => 300,
-        PieceType::Rook => 500,
-        PieceType::Queen => 900,
-        PieceType::King => 9999, // Doesn't happen since the king is never captured
+fn store_possible_killer(depth: u8, board: &Board, mv: Move, killers: &mut Killers) {
+    // The move caused a beta cutoff. If it's a quiet move (i.e. it doesn't capture anything),
+    // then it is a killer move and it must be stored if it isn't there already
+    if !mv.is_capture(board) {
+        let i = depth as usize;
+        if mv != killers[i][0] {
+            killers[i][1] = killers[i][0];
+            killers[i][0] = mv;
+        }
     }
 }
