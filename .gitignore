@@ -1,1 +1,3 @@
 /target
+etc/out/*
+!etc/out/.gitkeep

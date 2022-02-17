@@ -113,7 +113,7 @@ class Match:
 old_engine = ShakmatVer(OLD_VER["port"], OLD_VER["name"])
 new_engine = ShakmatVer(NEW_VER["port"], NEW_VER["name"])
 
-openings = [line.strip().split(" ") for line in open("openings.txt", "r").readlines()][1:]
+openings = [[]] + [line.strip().split(" ") for line in open("openings.txt", "r").readlines()]
 
 for i, opening_line in enumerate(openings, start=1):
     print(f"Opening {i}, game 1... ", end="", flush=True)
@@ -126,8 +126,8 @@ for i, opening_line in enumerate(openings, start=1):
     d = {"B": OLD_VER["name"], "W": NEW_VER["name"], "D": "Draw"}
     print(d[res], flush=True)
 
-with open("scores.json", "w") as f:
+with open("out/scores.json", "w") as f:
     f.write(dumps({OLD_VER["name"]: old_engine.scores, NEW_VER["name"]: new_engine.scores}))
 
-with open("times.json", "w") as f:
+with open("out/times.json", "w") as f:
     f.write(dumps({OLD_VER["name"]: old_engine.move_speeds, NEW_VER["name"]: new_engine.move_speeds}))
