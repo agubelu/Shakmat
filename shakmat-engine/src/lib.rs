@@ -3,8 +3,9 @@ mod evaluation;
 mod move_ordering;
 mod polyglot;
 mod search;
+mod time;
 mod trasposition;
 
 // Exports
-pub use search::{is_draw_by_repetition, SearchResult};
+pub use search::{is_draw_by_repetition, SearchResult, SearchOptions};
 pub use engine::ShakmatEngine;

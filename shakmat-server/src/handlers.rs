@@ -2,7 +2,7 @@ use std::sync::Mutex;
 use std::mem::drop;
 
 use shakmat_core::Move;
-use shakmat_engine::ShakmatEngine;
+use shakmat_engine::{ShakmatEngine, SearchOptions};
 use rocket::serde::json::Json;
 use rocket::{Route, State};
 
@@ -59,8 +59,9 @@ pub fn make_move(state: &StateMutex, game_id: &str, r#move: Json<MoveData>) -> A
     }
 }
 
-#[get("/games/<game_id>/move_suggestion")]
-pub fn get_computer_move(state: &StateMutex, engine: &State<ShakmatEngine>, game_id: &str) -> ApiResponse {
+#[get("/games/<game_id>/move_suggestion?<depth>&<move_ms>&<total_ms>")]
+pub fn get_computer_move(state: &StateMutex, engine: &State<ShakmatEngine>, game_id: &str,
+depth: Option<u8>, move_ms: Option<u64>, total_ms: Option<u64>) -> ApiResponse {
     let state_lock = state.inner().lock().unwrap();
     let board = match state_lock.get_board(game_id) {
         Some(board) => *board,
@@ -75,7 +76,16 @@ pub fn get_computer_move(state: &StateMutex, engine: &State<ShakmatEngine>, game
     // We drop the lock here so the rather slow process of finding the best
     // move doesn't block all othe requests
     drop(state_lock);
-    let search_result = engine.inner().find_best_move(&board, &past_positions);
+
+    // Create the search options struct with the data from the query string
+    let search_options = SearchOptions { 
+        total_time_remaining: total_ms,
+        moves_until_control: None, //TO-DO
+        time_for_move: move_ms, 
+        max_depth: depth,
+    };
+
+    let search_result = engine.inner().find_best_move(&board, &past_positions, search_options);
 
     match search_result.best_move {
         Some(_) => ApiResponse::move_suggestion(&search_result),

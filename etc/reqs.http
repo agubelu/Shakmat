@@ -6,14 +6,14 @@
 POST {{BASE}}/games
 Content-Type: application/json
 
-{"fen": "r3k2r/ppp2pp1/3p1q1p/2bbp3/2P1P3/3Q1N2/PPP2PPP/R4RK1 w kq - 0 5"}
+{"fen": "8/4P3/8/8/8/6P1/1k4P1/6K1 w - - 1 57"}
 
 ###
 @gameid = {{create.response.body.key}}
 
 ###
 
-GET {{BASE}}/games/{{gameid}}/move_suggestion
+GET {{BASE}}/games/{{gameid}}/move_suggestion?move_ms=10000
 
 ###
 

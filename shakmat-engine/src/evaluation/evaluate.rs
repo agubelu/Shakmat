@@ -9,6 +9,12 @@ use super::positional_tables;
 // (for example, plies to checkmate instead of the raw score)
 pub struct Evaluation { score: i16 } 
 
+// The contempt factor is the score that the engine associates with a draw.
+// A negative value means that the engine assumes it is superior to its opponent,
+// so drawing is penalized. Conversely, a positive value means that the engine assumes
+// itself to be inferior, so it encourages drawing when it cannot find a decisive advantage.
+const CONTEMPT: i16 = 0;
+
 // Auxiliary struct to store values that are used in different parts
 // of the evaluation, to avoid calculating them multiple times
 struct EvalData<'a> {
@@ -152,9 +158,13 @@ impl<'a> EvalData<'a> {
 
 
 impl Evaluation {
-    pub fn new(score: i16) -> Self {
+    pub const fn new(score: i16) -> Self {
         Self { score }
     }
+
+    pub const fn contempt() -> Self {
+        Self::new(CONTEMPT)
+    } 
 
     // The min value is set to i16::MIN + 1, so that -min_val() == max_val()
     // and viceversa. Otherwise, it overflows when swapping its sign
@@ -201,6 +211,34 @@ impl Add<i16> for Evaluation {
 
     fn add(self, rhs: i16) -> Self::Output {
         Self::new(self.score + rhs)
+    }
+}
+
+impl Sub<Self> for Evaluation {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self::new(self.score - rhs.score)
+    }
+}
+
+impl Add<Self> for Evaluation {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::new(self.score + rhs.score)
+    }
+}
+
+impl PartialOrd<i16> for Evaluation {
+    fn partial_cmp(&self, other: &i16) -> Option<std::cmp::Ordering> {
+        self.score.partial_cmp(other)
+    }
+}
+
+impl PartialEq<i16> for Evaluation {
+    fn eq(&self, other: &i16) -> bool {
+        self.score == *other
     }
 }
 

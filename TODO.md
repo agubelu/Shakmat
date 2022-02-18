@@ -1,6 +1,7 @@
 A collection of ideas and things I want to implement so I dont forget
 
 # Must do
+- Experiment: don't enter a new iteration if the time for the last one > time remaining
 - Endgame tablebases
 - Search struct to store info during the search
 - Null move
@@ -21,3 +22,4 @@ A collection of ideas and things I want to implement so I dont forget
 - https://rich.readthedocs.io/en/stable/introduction.html for the python script (so overkill :D)
 - Maybe UCI integration
 - Look at Rust profilers
+- Experiment with variable panic times depending on depth/score drop
