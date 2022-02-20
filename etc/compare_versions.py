@@ -1,12 +1,14 @@
 # Plays several matches between two versions of Shakmat using different openings,
 # and reports on the final results, both in term of scores and average move speed.
 import requests as rq
-from datetime import datetime
 from json import dumps
 import sys
 
 OLD_VER = {"port": int(sys.argv[2]), "name": sys.argv[1]}
 NEW_VER = {"port":  int(sys.argv[4]), "name": sys.argv[3]}
+
+TOTAL_TIME = 3 * 60 * 1000 # ms
+INCREMENT = 1000 # ms
 
 class ShakmatVer:
     def __init__(self, port, name):
@@ -15,6 +17,7 @@ class ShakmatVer:
         self.current_game = None
         self.move_speeds = {}
         self.scores = {k: {s: 0 for s in ("win", "lose", "draw")} for k in ("black", "white")}
+        self.timer = TOTAL_TIME
 
     def create_game(self):
         resp = rq.post(f"http://127.0.0.1:{self.port}/games").json()
@@ -35,8 +38,10 @@ class ShakmatVer:
         return resp.json()["turn_info"]
 
     def get_best_move(self):
-        url = f"http://127.0.0.1:{self.port}/games/{self.current_game}/move_suggestion"
-        return rq.get(url).json()["move"]
+        url = f"http://127.0.0.1:{self.port}/games/{self.current_game}/move_suggestion?total_ms={int(self.timer)}"
+        req = rq.get(url)
+        elapsed_ms = req.elapsed.microseconds // 1000
+        return req.json()["move"], elapsed_ms
 
     def update_score(self, color, result):
         assert color in ("black", "white")
@@ -58,6 +63,8 @@ class Match:
         self.black.create_game()
 
     def play(self):
+        self.white.timer = TOTAL_TIME
+        self.black.timer = TOTAL_TIME
         result = None
         while True:
             (moving_player, other_player) = (self.white, self.black) if self.ply % 2 == 0 \
@@ -70,12 +77,12 @@ class Match:
             else:
                 # Not inside the opening line, ask the engine for the best move
                 # and log the time it takes to reply
-                t1 = datetime.now()
-                move = moving_player.get_best_move()
-                t2 = datetime.now()
-                elapsed = (t2 - t1).total_seconds()
+                move, elapsed_ms = moving_player.get_best_move()
+                moving_player.timer -= elapsed_ms
+                moving_player.update_moving_time(self.ply, elapsed_ms / 1000)
 
-                moving_player.update_moving_time(self.ply, elapsed)
+                if moving_player.timer > 0:
+                    moving_player.timer += INCREMENT
             
             if move:
                 # Make the move on both sides
@@ -84,6 +91,23 @@ class Match:
                 self.ply += 1
             else:
                 turn_info = {"moves": []}
+
+            print(f"Time remaining - White: {self.white.timer / 1000}, Black: {self.black.timer / 1000}")
+
+            # Check if the player lost by time
+            if moving_player.timer <= 0:
+                if moving_player is self.white:
+                    print("White ran out of time")
+                    self.white.update_score("white", "lose")
+                    self.black.update_score("black", "win")
+                    result = "B"
+                else:
+                    print("Black ran out of time")
+                    self.white.update_score("white", "win")
+                    self.black.update_score("black", "lose")
+                    result = "W"
+
+                break
             
             if not turn_info["moves"] or not move:
                 # No moves available, check whether this is checkmate or a draw
