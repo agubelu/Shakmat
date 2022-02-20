@@ -1,6 +1,7 @@
 # Plays several matches between two versions of Shakmat using different openings,
 # and reports on the final results, both in term of scores and average move speed.
 import requests as rq
+from datetime import datetime
 from json import dumps
 import sys
 
@@ -39,9 +40,7 @@ class ShakmatVer:
 
     def get_best_move(self):
         url = f"http://127.0.0.1:{self.port}/games/{self.current_game}/move_suggestion?total_ms={int(self.timer)}"
-        req = rq.get(url)
-        elapsed_ms = req.elapsed.microseconds // 1000
-        return req.json()["move"], elapsed_ms
+        return rq.get(url).json()["move"]
 
     def update_score(self, color, result):
         assert color in ("black", "white")
@@ -77,7 +76,10 @@ class Match:
             else:
                 # Not inside the opening line, ask the engine for the best move
                 # and log the time it takes to reply
-                move, elapsed_ms = moving_player.get_best_move()
+                t1 = datetime.now()
+                move = moving_player.get_best_move()
+                t2 = datetime.now()
+                elapsed_ms = (t2-t1).total_seconds() * 1000
                 moving_player.timer -= elapsed_ms
                 moving_player.update_moving_time(self.ply, elapsed_ms / 1000)
 
