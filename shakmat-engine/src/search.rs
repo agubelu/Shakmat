@@ -22,7 +22,7 @@ const ASP_WINDOW: i16 = 30;
 const PANIC_DROP: i16 = 50;
 
 // Typedef for the killer moves table
-pub type Killers = [[Move; MAX_KILLERS]; LIMIT_DEPTH];
+pub type Killers = [[Move; MAX_KILLERS]; LIMIT_DEPTH + 1];
 
 // The Search struct contains all necessary parameters for the search and stores
 // relevant information between iterations. All search-related functions
@@ -57,7 +57,7 @@ impl Search {
             timer: TimeManager::new(&config),
             max_depth: config.max_depth.unwrap_or(LIMIT_DEPTH as u8),
             tt: TTable::new(TRASPOSITION_TABLE_SIZE),
-            killers: [[Move::empty(); MAX_KILLERS]; LIMIT_DEPTH],
+            killers: [[Move::empty(); MAX_KILLERS]; LIMIT_DEPTH + 1],
             node_count: 0,
             past_positions: past_positions.to_vec()
         }
