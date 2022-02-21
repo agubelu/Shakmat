@@ -14,6 +14,9 @@ const LIMIT_DEPTH: usize = 100;
 // Number of killer moves to store in each ply
 const MAX_KILLERS: usize = 2;
 
+// Depth to reduce a null move search. Maybe try dynamic values in the future?
+const NULL_MOVE_REDUCTION: u8 = 2;
+
 // Width for the aspiration window
 const ASP_WINDOW: i16 = 30;
 
@@ -80,7 +83,7 @@ impl Search {
         // the alpha-beta pruning remove many more branches during the search.
         let mut depth = 1;
         while depth <= self.max_depth && !self.timer.times_up() {
-            score = self.negamax(board, depth, 0, alpha, beta);
+            score = self.negamax(board, depth, 0, alpha, beta, true);
 
             // If we ran out of time during the search, stop and
             // return the score from the previous one
@@ -107,7 +110,10 @@ impl Search {
             // The score dropped a worrying amount w.r.t. the last iteration,
             // add some extra time to make sure we investigate it and maybe
             // find a better move
-            if depth > 1 && previous_score - score >= PANIC_DROP {
+            if depth > 3 && previous_score - score >= PANIC_DROP {
+                // :)
+                let worry = (previous_score - score).score() / PANIC_DROP;
+                println!("{}", "😰".to_owned().repeat(worry as usize));
                 self.timer.add_panic_time();
             }
 
@@ -138,12 +144,12 @@ impl Search {
         current_depth: u8, 
         mut alpha: Evaluation,
         beta: Evaluation, 
+        can_null: bool,
     ) -> Evaluation {
         self.node_count += 1;
 
         // If, for some reason, we go past the limit depth, return the static
-        // evaluation value right away. This should only happen if we are given
-        // unlimited time and a ridiculous target depth
+        // evaluation value right away.
         if current_depth >= LIMIT_DEPTH as u8 {
             return evaluate_position(board);
         }
@@ -185,7 +191,8 @@ impl Search {
         // avoid misevaluating dangerous positions and prevent the search from
         // entering in quiesence mode
         let color_moving = board.turn_color();
-        if board.is_check(color_moving) {
+        let is_check = board.is_check(color_moving);
+        if is_check {
             depth_remaining += 1;
         }
 
@@ -193,6 +200,29 @@ impl Search {
         // static evaluation is reliable
         if depth_remaining == 0 {
             return self.quiesence_search(board, current_depth, alpha, beta);
+        }
+
+        // Null move pruning: pass the turn, and see if the opponent can improve
+        // their position playing two turns in a row doing a reduced depth
+        // search. If they can't, we can assume that they will not allow this
+        // position to happen, and we can produce a beta cutoff. Special care
+        // must be given to not use this kind of pruning in positions where the
+        // current side to move is in check (it would be illegal), or in late
+        // game positions where not moving is actually the best move. Also, don't
+        // do it in positions close to the horizon.
+        if can_null && !is_check && depth_remaining > NULL_MOVE_REDUCTION && !board.only_pawns_or_endgame() && beta - alpha > 1 {
+            let new_board = board.make_null_move();
+            let score = -self.negamax(&new_board, depth_remaining - NULL_MOVE_REDUCTION - 1, current_depth + 1,
+                                     -beta, -beta + 1, false);
+
+            
+            // If the opponent can't improve their position, return beta
+            if score >= beta && !score.is_positive_mate() {
+                return beta;
+            // If we get checkmated if we don't do anything, increase the depth 
+            } else if score.is_negative_mate() {
+                depth_remaining += 1;
+            }
         }
 
         let mut best_score = Evaluation::min_val();
@@ -220,16 +250,16 @@ impl Search {
 
             // Since the moves are ordered, only evaluate the first move with a full window
             let next_score = if analyzed_moves == 0 {
-                -self.negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -alpha)
+                -self.negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -alpha, true)
             } else {
                 // Try a minimal window first. If the value falls under [alpha, beta] then use the standard window
                 let mut temptative_score = -self.negamax(&next_board, depth_remaining - 1, 
-                    current_depth + 1, (-alpha)-1, -alpha);
+                    current_depth + 1, (-alpha)-1, -alpha, true);
 
                 if temptative_score > alpha && temptative_score < beta {
                     // Do a full evaluation since the position was not significantly worsened
                     temptative_score = -self.negamax(&next_board, depth_remaining - 1, 
-                        current_depth + 1, -beta, -temptative_score);
+                        current_depth + 1, -beta, -temptative_score, true);
                 }
 
                 temptative_score
@@ -273,7 +303,7 @@ impl Search {
             return Evaluation::new(0);
         }
 
-        // If we have no best move, no legal moves  are available. 
+        // If we have no best move, no legal moves are available. 
         // Check whether this is a checkmate or a draw, and assign
         // the corresponding score.
         if best_move.is_none() {
@@ -298,6 +328,12 @@ impl Search {
     // a piece is hanging and can be easily captured in the next move.
     fn quiesence_search(&mut self, board: &Board, current_depth: u8, mut alpha: Evaluation, beta: Evaluation) -> Evaluation {
         self.node_count += 1;
+
+        // If, for some reason, we go past the limit depth, return the static
+        // evaluation value right away.
+        if current_depth >= LIMIT_DEPTH as u8 {
+            return evaluate_position(board);
+        }
 
         // Update the timer every 4096 nodes.
         if self.node_count & 4095 == 0 {

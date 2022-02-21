@@ -122,6 +122,29 @@ impl Board {
         new_board
     }
 
+    // Performs a null move, which means passing
+    pub fn make_null_move(&self) -> Self {
+        // Copy the current board and make the changes on it
+        let mut new_board = *self;
+
+        // If there is an active e.p. square, remove it
+        if new_board.update_ep_zobrist(self.turn_color()) {
+            new_board.zobrist_key ^= zobrist::get_key_ep_square(self.ep_square().first_piece_index());
+        }
+        new_board.en_passant_target.clear();
+
+        // Update the turn, the ply count and the full move count
+        new_board.turn = !self.turn;
+        new_board.zobrist_key ^= zobrist::get_key_white_turn();
+        new_board.plies += 1;
+
+        if new_board.turn == White {
+            new_board.full_turns += 1;
+        }
+
+        new_board
+    }
+
     pub fn pseudolegal_moves(&self) -> Vec<Move> {
         if self.is_draw() {
             vec![]
@@ -153,7 +176,7 @@ impl Board {
         }
     }
 
-     // A position is a draw by insufficient material if both sides have either
+    // A position is a draw by insufficient material if both sides have either
     // only K, KB or KN
     pub fn is_draw_by_material(&self) -> bool {
         // Return false if the current position is a check, since otherwise
@@ -166,6 +189,14 @@ impl Board {
 
         !is_check && (n_whites == 1 || n_whites == 2 && (self.white_pieces.bishops.count() == 1 || self.white_pieces.knights.count() == 1)) 
                   && (n_blacks == 1 || n_blacks == 2 && (self.black_pieces.bishops.count() == 1 || self.black_pieces.knights.count() == 1)) 
+    }
+
+    // Returns whether the current position only has pawns, or if it has
+    // 7 pieces or less. This is done to prevent null moves in the
+    // endgame, which may misevaluate zugzwang positions.
+    pub fn only_pawns_or_endgame(&self) -> bool {
+        let piece_count = self.all_pieces.count();
+        piece_count <= 7 || piece_count == self.black_pieces.pawns.count() + self.white_pieces.pawns.count() + 2
     }
 
     pub fn ep_square(&self) -> BitBoard {

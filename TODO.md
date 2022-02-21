@@ -23,3 +23,4 @@ A collection of ideas and things I want to implement so I dont forget
 - Maybe UCI integration
 - Look at Rust profilers
 - Experiment with variable panic times depending on depth/score drop
+- Set a compile flag to disable useless/debug prints
