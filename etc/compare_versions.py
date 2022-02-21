@@ -94,8 +94,6 @@ class Match:
             else:
                 turn_info = {"moves": []}
 
-            print(f"Time remaining - White: {self.white.timer / 1000}, Black: {self.black.timer / 1000}")
-
             # Check if the player lost by time
             if moving_player.timer <= 0:
                 if moving_player is self.white:

@@ -27,6 +27,7 @@ ax.set_ylabel('Games')
 ax.legend()
 plt.show()
 
+'''
 time_data = loads(open("out/times.json", "r").read())
 max_time = max(max(int(i) for i in time_data[v1]), max(int(i) for i in time_data[v2]))
 
@@ -45,3 +46,4 @@ line1, = ax.plot(x, times_v1, label=v1)
 line2, = ax.plot(x, times_v2, label=v2)
 ax.legend()
 plt.show()
+'''
