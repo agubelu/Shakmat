@@ -8,8 +8,8 @@ import sys
 OLD_VER = {"port": int(sys.argv[2]), "name": sys.argv[1]}
 NEW_VER = {"port":  int(sys.argv[4]), "name": sys.argv[3]}
 
-TOTAL_TIME = 3 * 60 * 1000 # ms
-INCREMENT = 1000 # ms
+TOTAL_TIME = int(sys.argv[5]) * 1000 # ms
+INCREMENT = int(float(sys.argv[6]) * 1000) # ms
 
 class ShakmatVer:
     def __init__(self, port, name):
