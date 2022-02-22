@@ -1,4 +1,4 @@
-@BASE = http://127.0.0.1:8002
+@BASE = http://127.0.0.1:8000
 
 ###
 
@@ -6,14 +6,14 @@
 POST {{BASE}}/games
 Content-Type: application/json
 
-{"fen": "r1bqkb1r/ppp1nppp/8/4N3/4n3/1B3Q2/PPPP1PPP/R1B1K2R b KQkq - 1 8"}
+{"fen": "1p1p3p/ppp1pppp/1p1ppp2/2k5/P3P3/BPPPB3/5BBB/BB1BKBrB b - - 0 1"}
 
 ###
 @gameid = {{create.response.body.key}}
 
 ### 2085 9
 
-GET {{BASE}}/games/{{gameid}}/move_suggestion?move_ms=10000
+GET {{BASE}}/games/{{gameid}}/move_suggestion?depth=15
 
 ###
 

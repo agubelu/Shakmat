@@ -12,6 +12,7 @@ pub struct TimeManager {
     total_remaining: u64, // Total time remaining in micros
     start: Instant, // Instant in which the time started counting
     finished: bool, // Whether the allocated time has passed
+    hard_limit: bool, // Whether we are given a hard time limit for the move
 }
 
 impl TimeManager {
@@ -19,11 +20,13 @@ impl TimeManager {
         let mut allocated_micros = 0;
         let mut total_remaining = 0;
         let mut unlimited = false;
+        let mut hard_limit = false;
 
         if let Some(time) = options.time_for_move {
             // We are given a specific value *in millis* for the time we have to
             // make this move, use that value
             allocated_micros = time * 1000 - OFFSET;
+            hard_limit = true;
         } else if options.total_time_remaining.is_none() {
             // We are not given a time remaining, so we have
             // unlimited time
@@ -43,7 +46,7 @@ impl TimeManager {
             allocated_micros = total_remaining / moves_remaining * 4 / 5 - OFFSET;
         }
 
-        Self { allocated_micros, total_remaining, unlimited, start: Instant::now(), finished: false }
+        Self { allocated_micros, total_remaining, unlimited, hard_limit, start: Instant::now(), finished: false }
     }
 
     pub fn add_panic_time(&mut self) {
@@ -61,11 +64,11 @@ impl TimeManager {
 
     pub fn update(&mut self) {
         if !self.unlimited {
-            self.finished = self.elapsed_us() >= self.allocated_micros;
+            self.finished = self.elapsed_micros() >= self.allocated_micros;
         }
     }
 
-    pub fn remaining_us(&mut self) -> u64 {
+    pub fn remaining_micros(&mut self) -> u64 {
         self.update();
 
         if self.times_up() {
@@ -73,15 +76,19 @@ impl TimeManager {
         } else if self.unlimited {
             u64::MAX
         } else {
-            self.allocated_micros - self.elapsed_us()
+            self.allocated_micros - self.elapsed_micros()
         }
     }
 
-    pub fn elapsed_us(&self) -> u64 {
+    pub fn elapsed_micros(&self) -> u64 {
         self.start.elapsed().as_micros() as u64
     }
 
     pub fn times_up(&self) -> bool {
         self.finished
+    }
+
+    pub fn hard_limit(&self) -> bool {
+        self.hard_limit
     }
 }

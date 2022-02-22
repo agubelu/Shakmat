@@ -69,6 +69,12 @@ impl Search {
     // Wrapper function over the negamax algorithm, returning the best move
     // along with the associated score
     pub fn find_best(&mut self, board: &Board) -> SearchResult {
+        // If there is only one legal move, return it immediately
+        let legal_moves = board.legal_moves();
+        if legal_moves.len() == 1 {
+            return SearchResult { score: Evaluation::new(0), best_move: Some(legal_moves[0]) };
+        }
+
         let mut previous_score = Evaluation::new(0);
         let mut score = Evaluation::min_val();
         let mut best_move = None;
@@ -83,7 +89,10 @@ impl Search {
         // the alpha-beta pruning remove many more branches during the search.
         let mut depth = 1;
         while depth <= self.max_depth && !self.timer.times_up() {
+            
+            let t_start = self.timer.elapsed_micros();
             score = self.negamax(board, depth, 0, alpha, beta, true);
+            let search_time = self.timer.elapsed_micros() - t_start;
 
             // If we ran out of time during the search, stop and
             // return the score from the previous one
@@ -111,9 +120,8 @@ impl Search {
             // add some extra time to make sure we investigate it and maybe
             // find a better move
             if depth > 3 && previous_score - score >= PANIC_DROP {
-                // :)
                 let worry = (previous_score - score).score() / PANIC_DROP;
-                println!("{}", "😰".to_owned().repeat(worry as usize));
+                println!("{}", "😰".to_owned().repeat(worry as usize)); // 😰
                 self.timer.add_panic_time();
             }
 
@@ -123,6 +131,15 @@ impl Search {
             // The call to tt.get_entry() writes to the best_move parameter
             self.tt.get_entry(board.zobrist_key(), 0, Evaluation::min_val(), Evaluation::max_val(), &mut best_move);
 
+            // It is reasonable to assume that the search time increases with
+            // increasing depth. So, if the last search took more time than
+            // the time we have remaining, and we are not given a hard time
+            // limit to make this move, save time by avoiding entering a search
+            // that will most likely be interrupted
+            if !self.timer.hard_limit() && search_time > self.timer.remaining_micros() {
+                break;
+            }
+
             alpha = score - ASP_WINDOW;
             beta = score + ASP_WINDOW;
             previous_score = score;
@@ -130,9 +147,9 @@ impl Search {
         }
 
         // Print some stats before returning the result
-        let total_us = self.timer.elapsed_us();
-        let knodes_per_s = self.node_count as u64 * 1_000 / total_us;
-        println!("KNPS: {}, max. depth: {}", knodes_per_s, depth);
+        let total_micros = self.timer.elapsed_micros();
+        let knps = self.node_count as u64 * 1_000 / total_micros;
+        println!("KNPS: {}, max. depth: {}", knps, depth);
 
         SearchResult { score, best_move }
     }
