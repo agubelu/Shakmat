@@ -178,7 +178,7 @@ impl Search {
         let mut tt_move = None;
         let zobrist = board.zobrist_key();
         if let Some(eval) = self.tt.get_entry(zobrist, depth_remaining, alpha, beta, &mut tt_move) {
-            return eval
+            return eval;
         }
 
         // If this is an immediate draw, we don't have to do anything else
@@ -210,7 +210,7 @@ impl Search {
         // current side to move is in check (it would be illegal), or in late
         // game positions where not moving is actually the best move. Also, don't
         // do it in positions close to the horizon.
-        if can_null && !is_check && depth_remaining > NULL_MOVE_REDUCTION && !board.only_pawns_or_endgame() && beta - alpha > 1 {
+        if can_null && !is_check && depth_remaining > NULL_MOVE_REDUCTION && !board.only_pawns_or_endgame() && beta - alpha == 1 {
             let new_board = board.make_null_move();
             let score = -self.negamax(&new_board, depth_remaining - NULL_MOVE_REDUCTION - 1, current_depth + 1,
                                      -beta, -beta + 1, false);
