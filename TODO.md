@@ -2,10 +2,7 @@ A collection of ideas and things I want to implement so I dont forget
 
 # Must do
 - Experiment: don't enter a new iteration if the time for the last one > time remaining
-- Endgame tablebases
-- Search struct to store info during the search
-- Null move
-- Time management
+- Endgame tablebases/bitbases
 - Convert non-castling castling moves from the opening book
 - Better evaluation for pawns (structure, passed...)
 - Configuration endpoint
