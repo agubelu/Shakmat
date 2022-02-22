@@ -7,8 +7,8 @@ use crate::search::SearchOptions;
 const OFFSET: u64 = 10_000;
 pub struct TimeManager {
     unlimited: bool, // Whether we have unlimited time to make a move
-    allocated_micros: u64, // Amount of us that we have calculated that we 
-                           // can spend on this move
+    time_for_this_move: u64, // Amount of us that we have calculated that we 
+                             // can spend on this move
     total_remaining: u64, // Total time remaining in micros
     start: Instant, // Instant in which the time started counting
     finished: bool, // Whether the allocated time has passed
@@ -17,7 +17,7 @@ pub struct TimeManager {
 
 impl TimeManager {
     pub fn new(options: &SearchOptions) -> Self {
-        let mut allocated_micros = 0;
+        let mut time_for_this_move = 0;
         let mut total_remaining = 0;
         let mut unlimited = false;
         let mut hard_limit = false;
@@ -25,7 +25,7 @@ impl TimeManager {
         if let Some(time) = options.time_for_move {
             // We are given a specific value *in millis* for the time we have to
             // make this move, use that value
-            allocated_micros = time * 1000 - OFFSET;
+            time_for_this_move = time * 1000 - OFFSET;
             hard_limit = true;
         } else if options.total_time_remaining.is_none() {
             // We are not given a time remaining, so we have
@@ -43,28 +43,28 @@ impl TimeManager {
 
             // Aim to make a move in 80% of that time, so that we have
             // some extra time later on if we need to allocate panic time.
-            allocated_micros = total_remaining / moves_remaining * 4 / 5 - OFFSET;
+            time_for_this_move = total_remaining / moves_remaining * 4 / 5 - OFFSET;
         }
 
-        Self { allocated_micros, total_remaining, unlimited, hard_limit, start: Instant::now(), finished: false }
+        Self { time_for_this_move, total_remaining, unlimited, hard_limit, start: Instant::now(), finished: false }
     }
 
     pub fn add_panic_time(&mut self) {
         // If the search requests to allocate extra time, we increment the 
         // allowed time by 30%, but never to the point where we would use more
-        // than 20% of the total time remaining
+        // than 75% of the total time remaining
         
         // Only do this for searches with a total time remaining, otherwise ignore
         // it as we're either in unlimited time mode, or under a hard constraint
         // for the move in question
         if self.total_remaining != 0 {
-            self.allocated_micros = min(self.total_remaining / 5, self.allocated_micros * 13 / 10);
+            self.time_for_this_move = min(self.time_for_this_move * 13 / 10, self.total_remaining * 75 / 100);
         }
     }
 
     pub fn update(&mut self) {
         if !self.unlimited {
-            self.finished = self.elapsed_micros() >= self.allocated_micros;
+            self.finished = self.elapsed_micros() >= self.time_for_this_move;
         }
     }
 
@@ -76,7 +76,7 @@ impl TimeManager {
         } else if self.unlimited {
             u64::MAX
         } else {
-            self.allocated_micros - self.elapsed_micros()
+            self.time_for_this_move - self.elapsed_micros()
         }
     }
 

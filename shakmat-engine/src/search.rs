@@ -1,4 +1,5 @@
 use shakmat_core::{Board, Move};
+use std::cmp::min;
 
 use crate::evaluation::{evaluate_position, Evaluation};
 use crate::move_ordering::{order_moves, RatedMove};
@@ -22,7 +23,7 @@ const ASP_WINDOW: i16 = 30;
 
 // The amount that a score must drop between iterations for
 // panic time to be allocated
-const PANIC_DROP: i16 = 50;
+const PANIC_DROP: i16 = 30;
 
 // Typedef for the killer moves table
 pub type Killers = [[Move; MAX_KILLERS]; LIMIT_DEPTH + 1];
@@ -121,7 +122,7 @@ impl Search {
             // find a better move
             if depth > 3 && previous_score - score >= PANIC_DROP {
                 let worry = (previous_score - score).score() / PANIC_DROP;
-                println!("{}", "😰".to_owned().repeat(worry as usize)); // 😰
+                println!("{}", "😰".to_owned().repeat(min(worry as usize, 10))); // 😰
                 self.timer.add_panic_time();
             }
 
