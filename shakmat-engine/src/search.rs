@@ -117,6 +117,18 @@ impl Search {
                 continue;
             }
 
+            // The best move will be stored in the corresponding entry in the transposition table.
+            // Because we use an "always-replace" scheme, it is guaranteed that the best
+            // move for the root position will be stored there when the search finishes.
+            // The call to tt.get_entry() writes to the best_move parameter
+            self.tt.get_entry(board.zobrist_key(), 0, Evaluation::min_val(), Evaluation::max_val(), &mut best_move);
+
+            // If the currest best score is a forced mate, either for us or for
+            // the opponent, return the move right away.
+            if score.is_mate() {
+                break;
+            }
+
             // The score dropped a worrying amount w.r.t. the last iteration,
             // add some extra time to make sure we investigate it and maybe
             // find a better move
@@ -125,12 +137,6 @@ impl Search {
                 println!("{}", "😰".to_owned().repeat(min(worry as usize, 10))); // 😰
                 self.timer.add_panic_time();
             }
-
-            // The best move will be stored in the corresponding entry in the transposition table.
-            // Because we use an "always-replace" scheme, it is guaranteed that the best
-            // move for the root position will be stored there when the search finishes.
-            // The call to tt.get_entry() writes to the best_move parameter
-            self.tt.get_entry(board.zobrist_key(), 0, Evaluation::min_val(), Evaluation::max_val(), &mut best_move);
 
             // It is reasonable to assume that the search time increases with
             // increasing depth. So, if the last search took more time than

@@ -188,6 +188,10 @@ impl Evaluation {
     pub fn is_negative_mate(&self) -> bool {
         *self <= Self::min_val() + 100
     }
+
+    pub fn is_mate(&self) -> bool {
+        self.is_negative_mate() || self.is_positive_mate()
+    }
 }
 
 impl Neg for Evaluation {
@@ -245,9 +249,9 @@ impl PartialEq<i16> for Evaluation {
 impl Display for Evaluation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.is_positive_mate() {
-            write!(f, "M{}", i16::MAX - self.score())
+            write!(f, "M{}", (i16::MAX - self.score()) / 2)
         } else if self.is_negative_mate() {
-            write!(f, "-M{}", self.score() - i16::MIN - 1)
+            write!(f, "-M{}", (self.score() - i16::MIN - 1) / 2)
         } else {
             write!(f, "{:+.2}", self.score() as f32 / 100.0)
         }
