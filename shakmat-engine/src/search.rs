@@ -59,7 +59,7 @@ impl Search {
     pub fn from_config(config: SearchOptions, past_positions: &[u64]) -> Self {
         Self {
             timer: TimeManager::new(&config),
-            max_depth: config.max_depth.unwrap_or(LIMIT_DEPTH as u8),
+            max_depth: min(config.max_depth.unwrap_or(LIMIT_DEPTH as u8), LIMIT_DEPTH as u8),
             tt: TTable::new(TRASPOSITION_TABLE_SIZE),
             killers: [[Move::empty(); MAX_KILLERS]; LIMIT_DEPTH + 1],
             node_count: 0,
