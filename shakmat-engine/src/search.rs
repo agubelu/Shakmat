@@ -1,4 +1,4 @@
-use shakmat_core::{Board, Move};
+use shakmat_core::{Board, Move, PieceType::*};
 use std::cmp::min;
 
 use crate::evaluation::{evaluate_position, Evaluation};
@@ -90,7 +90,6 @@ impl Search {
         // the alpha-beta pruning remove many more branches during the search.
         let mut depth = 1;
         while depth <= self.max_depth && !self.timer.times_up() {
-            
             let t_start = self.timer.elapsed_micros();
             score = self.negamax(board, depth, 0, alpha, beta, true);
             let search_time = self.timer.elapsed_micros() - t_start;
@@ -234,10 +233,11 @@ impl Search {
         // current side to move is in check (it would be illegal), or in late
         // game positions where not moving is actually the best move. Also, don't
         // do it in positions close to the horizon.
-        if can_null && !is_check && depth_remaining > NULL_MOVE_REDUCTION && !board.only_pawns_or_endgame() && beta - alpha == 1 {
+        let is_pv = beta - alpha != 1;
+
+        if can_null && !is_check && depth_remaining > NULL_MOVE_REDUCTION && !board.only_pawns_or_endgame() && !is_pv {
             let new_board = board.make_null_move();
-            let score = -self.negamax(&new_board, depth_remaining - NULL_MOVE_REDUCTION - 1, current_depth + 1,
-                                     -beta, -beta + 1, false);
+            let score = -self.negamax(&new_board, depth_remaining - NULL_MOVE_REDUCTION - 1, current_depth + 1, -beta, -beta + 1, false);
 
             
             // If the opponent can't improve their position, return beta
@@ -272,21 +272,52 @@ impl Search {
             // Update the vec of past positions with the current zobrist key before the recursive call
             self.past_positions.push(zobrist);
 
+            // Late move reduction: Moves after the first one are less likely
+            // to be interesting, so we search them with a reduced depth and
+            // window. The reduction increases by 1 for every 5 moves.
+            // However, the following moves are not reduced: checks in general,
+            // captures, promotions, PV nodes, shallow depth, killers and pawn moves
+            let gives_check = next_board.is_check(next_board.turn_color());
+            let cap_or_prom = matches!(mv, Move::PawnPromotion{..}) || mv.is_capture(board);
+            let is_pawn_move = mv.piece_moving(board) == Pawn;
+            let is_tactical = gives_check || cap_or_prom || is_pawn_move || self.is_killer(&mv, current_depth);
+
+            let mut red = 0;
+            if !is_pv && !is_tactical && depth_remaining >= 3 && analyzed_moves > 0 {
+                red = 1 + analyzed_moves / 5;
+            }
+
+            // Make sure that we don't reduce directly into quiesence search
+            if red >= depth_remaining {
+                red = depth_remaining - 1;
+            }
+
+            // The score for the current move
+            let mut score = Evaluation::new(0);
+
+            // Whether we must do a full fledged search, which is true
+            // by default unless the reduced search fails low and we
+            // can skip it
+            let mut do_full_depth = true;
+
+            // If we are reducing, try to search with reduced depth first
+            if red != 0 {
+                score = -self.negamax(&next_board, depth_remaining - red, current_depth + 1, (-alpha)-1, -alpha, true);
+                // If the reduced search fails low, we don't have to search using full depth
+                do_full_depth = score > alpha;
+            }
+
             // Since the moves are ordered, only evaluate the first move with a full window
-            let next_score = if analyzed_moves == 0 {
-                -self.negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -alpha, true)
-            } else {
+            if analyzed_moves == 0 {
+                score = -self.negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -alpha, true);
+            } else if do_full_depth {
                 // Try a minimal window first. If the value falls under [alpha, beta] then use the standard window
-                let mut temptative_score = -self.negamax(&next_board, depth_remaining - 1, 
-                    current_depth + 1, (-alpha)-1, -alpha, true);
+                score = -self.negamax(&next_board, depth_remaining - 1, current_depth + 1, (-alpha)-1, -alpha, true);
 
-                if temptative_score > alpha && temptative_score < beta {
+                if score > alpha && score < beta {
                     // Do a full evaluation since the position was not significantly worsened
-                    temptative_score = -self.negamax(&next_board, depth_remaining - 1, 
-                        current_depth + 1, -beta, -temptative_score, true);
+                    score = -self.negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -alpha, true);
                 }
-
-                temptative_score
             };
 
             // We're done calling recursively, remove the current state from the history
@@ -294,11 +325,11 @@ impl Search {
             analyzed_moves += 1;
 
             // Update alpha, beta and the scores
-            if next_score > best_score {
+            if score > best_score {
                 // This move improves our previous score, update the score
                 // and the current new move
                 best_move = Some(mv);
-                best_score = next_score;
+                best_score = score;
             }
 
             if best_score > alpha {
@@ -401,6 +432,10 @@ impl Search {
         }
 
         alpha
+    }
+
+    fn is_killer(&self, mv: &Move, depth: u8) -> bool {
+        self.killers[depth as usize][0] == *mv || self.killers[depth as usize][1] == *mv
     }
 }
 
