@@ -25,6 +25,9 @@ const ASP_WINDOW: i16 = 30;
 // panic time to be allocated
 const PANIC_DROP: i16 = 30;
 
+// Number of legal moves after which to start applying late move reductions
+const LMR_MOVES: usize = 4;
+
 // Typedef for the killer moves table
 pub type Killers = [[Move; MAX_KILLERS]; LIMIT_DEPTH + 1];
 
@@ -239,7 +242,6 @@ impl Search {
             let new_board = board.make_null_move();
             let score = -self.negamax(&new_board, depth_remaining - NULL_MOVE_REDUCTION - 1, current_depth + 1, -beta, -beta + 1, false);
 
-            
             // If the opponent can't improve their position, return beta
             if score >= beta && !score.is_positive_mate() {
                 return beta;
@@ -274,24 +276,27 @@ impl Search {
 
             // Late move reduction: Moves after the first one are less likely
             // to be interesting, so we search them with a reduced depth and
-            // window. The reduction increases by 1 for every 5 moves.
-            // However, the following moves are not reduced: checks in general,
+            // window. However, the following moves are not reduced: checks in general,
             // captures, promotions, PV nodes, shallow depth, killers and pawn moves
+            // Also, we never reduce at the root
             let gives_check = next_board.is_check(next_board.turn_color());
             let cap_or_prom = matches!(mv, Move::PawnPromotion{..}) || mv.is_capture(board);
             let is_pawn_move = mv.piece_moving(board) == Pawn;
-            let is_tactical = gives_check || cap_or_prom || is_pawn_move || self.is_killer(&mv, current_depth);
+            let is_tactical = is_check || gives_check || cap_or_prom || is_pawn_move || self.is_killer(&mv, current_depth);
 
             let mut red = 0;
-            if !is_pv && !is_tactical && depth_remaining >= 3 && analyzed_moves > 0 {
-                red = 1 + analyzed_moves / 5;
-            }
+            if !is_pv && !is_tactical && depth_remaining >= 3 && analyzed_moves >= LMR_MOVES && current_depth != 0 {
+                // The base reduction starts at 2 because it's one more than the
+                // usual reduction in depth by 1 when calling recursively
+                // The reduction increases by 1 for each 5 moves after the LMR move limit.
+                red = 2 + (analyzed_moves - LMR_MOVES) as u8 / 5;
 
-            // Make sure that we don't reduce directly into quiesence search
-            if red >= depth_remaining {
-                red = depth_remaining - 1;
+                // Make sure that we don't reduce directly into quiesence search
+                if red >= depth_remaining {
+                    red = depth_remaining - 1;
+                }
             }
-
+            
             // The score for the current move
             let mut score = Evaluation::new(0);
 
