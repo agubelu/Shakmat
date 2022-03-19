@@ -52,8 +52,8 @@ impl CastlingRights {
 
     pub fn disable_all(&mut self, color: Color) {
         match color {
-            Color::White => self.rights &= 0b00001100,
-            Color::Black => self.rights &= 0b00000011
+            Color::White => self.rights &= 0b00000011,
+            Color::Black => self.rights &= 0b00001100,
         }
     }
 
@@ -68,6 +68,13 @@ impl CastlingRights {
         match color {
             Color::White => self.rights & 0b00000100 != 0,
             Color::Black => self.rights & 0b00000001 != 0,
+        }
+    }
+
+    pub fn has_lost_rights(&self, color: Color) -> bool {
+        match color {
+            Color::White => self.rights & 0b00001100 == 0,
+            Color::Black => self.rights & 0b00000011 == 0,
         }
     }
 }
