@@ -2,30 +2,27 @@ use super::Color;
 
 #[derive(Clone, Copy)]
 pub struct CastlingRights {
-    pub white_kingside: bool,
-    pub white_queenside: bool,
-    pub black_kingside: bool,
-    pub black_queenside: bool,
+    // We use the last 4 bits of an u8: XXXXABCD
+    // A -> White kingside
+    // B -> White queenside
+    // C -> Black kingside
+    // D -> Black queenside
+    rights: u8
 }
 
 impl Default for CastlingRights {
     fn default() -> Self {
-        CastlingRights {
-            white_kingside: true,
-            white_queenside: true,
-            black_kingside: true,
-            black_queenside: true,
-        }
+        CastlingRights { rights: 0x0F }
     }
 }
 
 impl CastlingRights {
     pub fn new(white_kingside: bool, white_queenside: bool, black_kingside: bool, black_queenside: bool) -> Self {
-        CastlingRights {
-            white_kingside,
-            white_queenside,
-            black_kingside,
-            black_queenside,
+        CastlingRights { rights:
+            (white_kingside as u8) << 3 |
+            (white_queenside as u8) << 2 |
+            (black_kingside as u8) << 1 |
+            (black_queenside as u8)
         }
     }
 
@@ -34,50 +31,43 @@ impl CastlingRights {
     }
 
     pub const fn index(&self) -> usize {
-        (self.white_kingside as usize) << 3 |
-        (self.white_queenside as usize) << 2 |
-        (self.black_kingside as usize) << 1 |
-        (self.black_queenside as usize)
+        self.rights as usize
     }
 
     pub fn update_kingside(&mut self, color: Color, can_castle: bool) {
+        let b = can_castle as u8;
         match color {
-            Color::White => self.white_kingside = can_castle,
-            Color::Black => self.black_kingside = can_castle,
+            Color::White => self.rights = (self.rights & !(1 << 3)) | (b << 3),
+            Color::Black => self.rights = (self.rights & !(1 << 1)) | (b << 1),
         }
     }
 
     pub fn update_queenside(&mut self, color: Color, can_castle: bool) {
+        let b = can_castle as u8;
         match color {
-            Color::White => self.white_queenside = can_castle,
-            Color::Black => self.black_queenside = can_castle,
+            Color::White => self.rights = (self.rights & !(1 << 2)) | (b << 2),
+            Color::Black => self.rights = self.rights & !1 | b,
         }
     }
 
     pub fn disable_all(&mut self, color: Color) {
         match color {
-            Color::White => {
-                self.white_kingside = false;
-                self.white_queenside = false;
-            },
-            Color::Black => {
-                self.black_kingside = false;
-                self.black_queenside = false;
-            }
+            Color::White => self.rights &= 0b00001100,
+            Color::Black => self.rights &= 0b00000011
         }
     }
 
     pub fn can_castle_kingside(&self, color: Color) -> bool {
         match color {
-            Color::White => self.white_kingside,
-            Color::Black => self.black_kingside,
+            Color::White => self.rights & 0b00001000 != 0,
+            Color::Black => self.rights & 0b00000010 != 0,
         }
     }
 
     pub fn can_castle_queenside(&self, color: Color) -> bool {
         match color {
-            Color::White => self.white_queenside,
-            Color::Black => self.black_queenside,
+            Color::White => self.rights & 0b00000100 != 0,
+            Color::Black => self.rights & 0b00000001 != 0,
         }
     }
 }
