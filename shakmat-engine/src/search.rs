@@ -28,6 +28,9 @@ const PANIC_DROP: i16 = 30;
 // Number of legal moves after which to start applying late move reductions
 const LMR_MOVES: usize = 4;
 
+// Score margins for futility pruning
+const FUTILIY_MARGINS: [i16; 6] = [0, 100, 160, 220, 280, 340];
+
 // Typedef for the killer moves table
 pub type Killers = [[Move; MAX_KILLERS]; LIMIT_DEPTH + 1];
 
@@ -155,6 +158,13 @@ impl Search {
             depth += 1;
         }
 
+        if depth > self.max_depth {
+            // We exited the loop after reaching the maximum depth,
+            // reduce it by 1 as it is the depth that was
+            // actually reached
+            depth -= 1;
+        }
+
         // Print some stats before returning the result
         let total_micros = self.timer.elapsed_micros();
         let knps = self.node_count as u64 * 1_000 / total_micros;
@@ -251,6 +261,19 @@ impl Search {
             }
         }
 
+        // Futility pruning: if we are close to the horizon, and the score
+        // is very far away from alpha, it is unlikely that we will improve it,
+        // to prune everything except the PV. However, don't do this in tactical
+        // positions such as checks and in the PV.
+        let mut do_futility = false;
+        if (depth_remaining as usize)  < FUTILIY_MARGINS.len() && !is_pv && !is_check
+        && !alpha.is_mate() {
+            let eval = evaluate_position(board);
+            if eval + FUTILIY_MARGINS[depth_remaining as usize] < alpha {
+                do_futility = true;
+            }
+        }
+
         let mut best_score = Evaluation::min_val();
         let mut best_move = None;
         let mut node_type = NodeType::AlphaCutoff;
@@ -271,9 +294,6 @@ impl Search {
                 continue;
             }
 
-            // Update the vec of past positions with the current zobrist key before the recursive call
-            self.past_positions.push(zobrist);
-
             // Late move reduction: Moves after the first one are less likely
             // to be interesting, so we search them with a reduced depth and
             // window. However, the following moves are not reduced: checks in general,
@@ -283,6 +303,16 @@ impl Search {
             let cap_or_prom = matches!(mv, Move::PawnPromotion{..}) || mv.is_capture(board);
             let is_pawn_move = mv.piece_moving(board) == Pawn;
             let is_tactical = is_check || gives_check || cap_or_prom || is_pawn_move || self.is_killer(&mv, current_depth);
+
+            // Futility pruning, part 2: if we decided earlier that we can
+            // use this pruning, and the current move is not a tactical one,
+            // skip this move entirely unless its the first one (PV)
+            if do_futility && analyzed_moves != 0 && !is_tactical {
+                continue;
+            }
+
+            // Update the vec of past positions with the current zobrist key before the recursive call
+            self.past_positions.push(zobrist);
 
             let mut red = 0;
             if !is_pv && !is_tactical && depth_remaining >= 3 && analyzed_moves >= LMR_MOVES && current_depth != 0 {
