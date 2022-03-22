@@ -3,13 +3,19 @@
 import requests as rq
 from datetime import datetime
 from json import dumps
+from os.path import isfile
+from os import remove
 import sys
+import chess
+import chess.pgn
 
 OLD_VER = {"port": int(sys.argv[2]), "name": sys.argv[1]}
 NEW_VER = {"port":  int(sys.argv[4]), "name": sys.argv[3]}
 
 TOTAL_TIME = int(sys.argv[5]) * 1000 # ms
 INCREMENT = int(float(sys.argv[6]) * 1000) # ms
+
+FILE_PGN = "out/games.pgn"
 
 class ShakmatVer:
     def __init__(self, port, name):
@@ -58,8 +64,18 @@ class Match:
         self.opening_line = opening
         self.ply = 0
 
+        self.game = chess.pgn.Game()
+        self.game.headers["White"] = white.name
+        self.game.headers["Black"] = black.name
+        self.last_node = None
+
         self.white.create_game()
         self.black.create_game()
+
+    def add_move(self, color_moving, move):
+        last_node = self.last_node if self.last_node is not None else self.game
+        next_node = last_node.add_variation(chess.Move.from_uci(move_to_uci(move, color_moving)))
+        self.last_node = next_node
 
     def play(self):
         self.white.timer = TOTAL_TIME
@@ -68,6 +84,7 @@ class Match:
         while True:
             (moving_player, other_player) = (self.white, self.black) if self.ply % 2 == 0 \
                                             else (self.black, self.white)
+            moving_color = "white" if self.ply % 2 == 0 else "black"
             
             move = None
             if self.ply < len(self.opening_line):
@@ -90,6 +107,7 @@ class Match:
                 # Make the move on both sides
                 moving_player.make_move(move)
                 turn_info = other_player.make_move(move)
+                self.add_move(moving_color, move)
                 self.ply += 1
             else:
                 turn_info = {"moves": []}
@@ -117,28 +135,55 @@ class Match:
                         # White checkmated black
                         self.white.update_score("white", "win")
                         self.black.update_score("black", "lose")
+                        self.game.headers["Result"] = "1-0"
                         result = "W"
                     else:
                         # Black checkmated white
                         self.white.update_score("white", "lose")
                         self.black.update_score("black", "win")
+                        self.game.headers["Result"] = "0-1"
                         result = "B"
                 else:
                     # Draw
                     self.white.update_score("white", "draw")
                     self.black.update_score("black", "draw")
+                    self.game.headers["Result"] = "1/2-1/2"
                     result = "D"
                 
                 break
 
         self.white.delete_game()
         self.black.delete_game()
+
+        with open(FILE_PGN, "a") as f:
+            f.write(str(self.game) + "\n\n")
+
         return result
+
+def move_to_uci(move, color):
+    move = move.lower()
+    if "=" in move:
+        return move.replace("=", "")
+    elif move == "o-o":
+        return {
+            "white": "e1g1",
+            "black": "e8g8"
+        }[color]
+    elif move == "o-o-o":
+        return {
+            "white": "e1c1",
+            "black": "e8c8"
+        }[color]
+    else:
+        return move
 
 old_engine = ShakmatVer(OLD_VER["port"], OLD_VER["name"])
 new_engine = ShakmatVer(NEW_VER["port"], NEW_VER["name"])
 
 openings = [[]] + [line.strip().split(" ") for line in open("openings.txt", "r").readlines()]
+
+if isfile(FILE_PGN):
+    remove(FILE_PGN)
 
 for i, opening_line in enumerate(openings, start=1):
     print(f"Opening {i}, game 1... ", end="", flush=True)
