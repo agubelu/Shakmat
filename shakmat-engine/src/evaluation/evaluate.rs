@@ -1,6 +1,7 @@
 use std::fmt::{Formatter, Display};
 use std::ops::{Neg, Add, Sub};
-use shakmat_core::{Board, Color::*, BitBoard, PieceType::*};
+use shakmat_core::{Board, Color::*, BitBoard, PieceType::*, Pieces};
+use super::pieces::eval_rooks;
 use super::positional_tables;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -17,11 +18,13 @@ const CONTEMPT: i16 = 0;
 
 // Auxiliary struct to store values that are used in different parts
 // of the evaluation, to avoid calculating them multiple times
-struct EvalData<'a> {
+pub struct EvalData<'a> {
     board: &'a Board,
     game_phase: i16,
     score_opening: i16,
     score_endgame: i16,
+    pieces_moving: &'a Pieces,
+    pieces_enemy: &'a Pieces,
     // Count of pieces of a certain type for every side
     wp: i16, wr: i16, wb: i16, wn: i16, wq: i16,
     bp: i16, br: i16, bb: i16, bn: i16, bq: i16,
@@ -46,7 +49,8 @@ fn calc_piece_score(eval_data: &mut EvalData) {
     let score = 100 * (eval_data.wp - eval_data.bp) +
     300 * (eval_data.wn - eval_data.bn) +
     300 * (eval_data.wb - eval_data.bb) +
-    500 * (eval_data.wr - eval_data.br) +
+    eval_rooks(eval_data.pieces_moving().rooks, eval_data.board()) -
+    eval_rooks(eval_data.pieces_enemy().rooks, eval_data.board()) +
     900 * (eval_data.wq - eval_data.bq);
 
     eval_data.score_opening += score;
@@ -135,7 +139,14 @@ impl<'a> EvalData<'a> {
         let wb = white_pieces.bishops.count() as i16;
         let wq = white_pieces.queens.count() as i16;
 
-        let mut res = Self {bp, br, bn, bb, bq, wp, wr, wn, wb, wq, board, game_phase: 0, score_endgame: 0, score_opening: 0};
+        let (pieces_moving, pieces_enemy) = match board.turn_color() {
+            White => (white_pieces, black_pieces),
+            Black => (black_pieces, white_pieces)
+        };
+
+        let mut res = Self {bp, br, bn, bb, bq, wp, wr, wn, wb, wq,
+             board, pieces_moving, pieces_enemy,
+             game_phase: 0, score_endgame: 0, score_opening: 0};
         res.update_game_phase();
         res
     }
@@ -153,6 +164,18 @@ impl<'a> EvalData<'a> {
         phase -= 2 * (self.wr + self.br);
         phase -= 4 * (self.wq + self.bq);
         self.game_phase = (phase * 256 + 12) / 24
+    }
+    
+    fn board(&self) -> &Board {
+        self.board
+    }
+
+    fn pieces_moving(&self) -> &Pieces {
+        self.pieces_moving
+    }
+
+    fn pieces_enemy(&self) -> &Pieces {
+        self.pieces_enemy
     }
 }
 
