@@ -1,4 +1,4 @@
-use shakmat_core::{BitBoard, Board};
+use shakmat_core::{BitBoard, Board, Color::*};
 use shakmat_core::magic::rook_moves;
 
 const FILES: [BitBoard; 8] = [
@@ -19,10 +19,10 @@ pub fn eval_rooks(bb: BitBoard, board: &Board) -> i16 {
         .map(|i| {
             let mut score = 500;
             // Bonuses:
-            // Connected rooks: 15 cp
-            let moves = rook_moves(i as usize, board.get_all_bitboard());
-            if !(moves & bb).is_empty() {
-                score += 15;
+            // Open file: 20 cp
+            let file = FILES[i as usize % 8];
+            if (file & (board.get_pieces(White).pawns | board.get_pieces(Black).pawns)).is_empty() {
+                score += 20;
             }
 
             score
