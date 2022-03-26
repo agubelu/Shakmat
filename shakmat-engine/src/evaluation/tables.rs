@@ -1,3 +1,16 @@
+use shakmat_core::BitBoard;
+
+pub const FILES: [BitBoard; 8] = [
+    BitBoard::new(0x0101010101010101),
+    BitBoard::new(0x0202020202020202),
+    BitBoard::new(0x0404040404040404),
+    BitBoard::new(0x0808080808080808),
+    BitBoard::new(0x1010101010101010),
+    BitBoard::new(0x2020202020202020),
+    BitBoard::new(0x4040404040404040),
+    BitBoard::new(0x8080808080808080),
+];
+
 pub static WHITE_PAWN_OPENING: [i16; 64] = [
       0,   0,  0,  0,  0,  0,  0,    0, 
     -21, -16, -6, -1, -1, -6, -16, -21, 

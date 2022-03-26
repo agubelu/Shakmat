@@ -1,13 +1,12 @@
 use std::fmt::{Formatter, Display};
 use std::ops::{Neg, Add, Sub};
-use shakmat_core::{Board, Color::*, BitBoard, PieceType::*, Pieces};
-use super::pieces::eval_rooks;
-use super::positional_tables;
+use shakmat_core::{Board, Color::{*, self}, BitBoard, PieceType::{*, self}};
+use super::{tables, EvalData};
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 // Represents the evaluation of a position. The goal of using a struct instead of an i16
 // directly is to implement Display, to be able to show the score in a much nicer way
 // (for example, plies to checkmate instead of the raw score)
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Evaluation { score: i16 } 
 
 // The contempt factor is the score that the engine associates with a draw.
@@ -16,19 +15,19 @@ pub struct Evaluation { score: i16 }
 // itself to be inferior, so it encourages drawing when it cannot find a decisive advantage.
 const CONTEMPT: i16 = 0;
 
-// Auxiliary struct to store values that are used in different parts
-// of the evaluation, to avoid calculating them multiple times
-pub struct EvalData<'a> {
-    board: &'a Board,
-    game_phase: i16,
-    score_opening: i16,
-    score_endgame: i16,
-    white_pieces: &'a Pieces,
-    black_pieces: &'a Pieces,
-    // Count of pieces of a certain type for every side
-    wp: i16, wr: i16, wb: i16, wn: i16, wq: i16,
-    bp: i16, br: i16, bb: i16, bn: i16, bq: i16,
-}
+// Bonuses and penalties, measured in centipawns
+// Values that are pairs represent the scores for the middlegame and endgame phases
+type ScorePair = (i16, i16);
+
+const PAWN_BASE_VALUE: i16 = 100;
+const BISHOP_BASE_VALUE: i16 = 300;
+const KNIGHT_BASE_VALUE: i16 = 300;
+const ROOK_BASE_VALUE: i16 = 500;
+const QUEEN_BASE_VALUE: i16 = 900;
+
+const TEMPO_BONUS: i16 = 28;
+const BISHOP_PAIR_BONUS: ScorePair = (20, 60);
+const ROOK_OPEN_FILE_BONUS: ScorePair = (20, 20);
 
 // Evaluate how favorable a position is for the current side to move
 // A positive score favors the current side, while a negative one
@@ -44,17 +43,28 @@ pub fn evaluate_position(board: &Board) -> Evaluation {
     eval_data.compute_score()
 }
 
-// Computes the total piece score of a color, using the normal piece scores
+// Computes the total piece score of a color, using the specialized functions
 fn calc_piece_score(eval_data: &mut EvalData) {  
-    let score = 100 * (eval_data.wp - eval_data.bp) +
-    300 * (eval_data.wn - eval_data.bn) +
-    300 * (eval_data.wb - eval_data.bb) +
-    eval_rooks(eval_data.white_pieces().rooks, eval_data.board()) -
-    eval_rooks(eval_data.black_pieces().rooks, eval_data.board()) +
-    900 * (eval_data.wq - eval_data.bq);
+    let (wp_mg, wp_eg) = eval_bitboard(eval_data.white_pieces.pawns, Pawn, eval_data.board, White);
+    let (bp_mg, bp_eg) = eval_bitboard(eval_data.black_pieces.pawns, Pawn, eval_data.board, Black);
 
-    eval_data.score_opening += score;
-    eval_data.score_endgame += score;
+    let (wb_mg, wb_eg) = eval_bitboard(eval_data.white_pieces.bishops, Bishop, eval_data.board, White);
+    let (bb_mg, bb_eg) = eval_bitboard(eval_data.black_pieces.bishops, Bishop, eval_data.board, Black);
+
+    let (wn_mg, wn_eg) = eval_bitboard(eval_data.white_pieces.knights, Knight, eval_data.board, White);
+    let (bn_mg, bn_eg) = eval_bitboard(eval_data.black_pieces.knights, Knight, eval_data.board, Black);
+
+    let (wr_mg, wr_eg) = eval_bitboard(eval_data.white_pieces.rooks, Rook, eval_data.board, White);
+    let (br_mg, br_eg) = eval_bitboard(eval_data.black_pieces.rooks, Rook, eval_data.board, Black);
+
+    let (wq_mg, wq_eg) = eval_bitboard(eval_data.white_pieces.queens, Queen, eval_data.board, White);
+    let (bq_mg, bq_eg) = eval_bitboard(eval_data.black_pieces.queens, Queen, eval_data.board, Black);
+
+    let (wk_mg, wk_eg) = eval_bitboard(eval_data.white_pieces.king, King, eval_data.board, White);
+    let (bk_mg, bk_eg) = eval_bitboard(eval_data.black_pieces.king, King, eval_data.board, Black);
+
+    eval_data.score_opening = wp_mg + wb_mg + wn_mg + wr_mg + wq_mg + wk_mg - bp_mg - bb_mg - bn_mg - br_mg - bq_mg - bk_mg;
+    eval_data.score_endgame = wp_eg + wb_eg + wn_eg + wr_eg + wq_eg + wk_eg - bp_eg - bb_eg - bn_eg - br_eg - bq_eg - bk_eg;
 }
 
 // Gives an extra centipoint for each square controlled, and 2 points
@@ -69,40 +79,40 @@ fn calc_control_score(eval_data: &mut EvalData) {
 // Gives positional bonuses to each piece using the corresponding table,
 // for both the middlegame and endgame phases.
 fn calc_positional_score(eval_data: &mut EvalData) {
-    let wp = eval_data.board.get_pieces(White);
-    let bp = eval_data.board.get_pieces(Black);
+    let wp = eval_data.white_pieces;
+    let bp = eval_data.black_pieces;
 
-    let score_opening = pos_score(wp.get_pieces_of_type(Pawn), &positional_tables::WHITE_PAWN_OPENING)
-        - pos_score(bp.get_pieces_of_type(Pawn), &positional_tables::BLACK_PAWN_OPENING)
-        + pos_score(wp.get_pieces_of_type(Rook), &positional_tables::WHITE_ROOK_OPENING)
-        - pos_score(bp.get_pieces_of_type(Rook), &positional_tables::BLACK_ROOK_OPENING)
-        + pos_score(wp.get_pieces_of_type(Knight), &positional_tables::WHITE_KNIGHT_OPENING)
-        - pos_score(bp.get_pieces_of_type(Knight), &positional_tables::BLACK_KNIGHT_OPENING)
-        + pos_score(wp.get_pieces_of_type(Bishop), &positional_tables::WHITE_BISHOP_OPENING)
-        - pos_score(bp.get_pieces_of_type(Bishop), &positional_tables::BLACK_BISHOP_OPENING)
-        + pos_score(wp.get_pieces_of_type(Queen), &positional_tables::WHITE_QUEEN_OPENING)
-        - pos_score(bp.get_pieces_of_type(Queen), &positional_tables::BLACK_QUEEN_OPENING)
-        + pos_score(wp.get_pieces_of_type(King), &positional_tables::WHITE_KING_OPENING)
-        - pos_score(bp.get_pieces_of_type(King), &positional_tables::BLACK_KING_OPENING);
+    let score_opening = pos_score(wp.pawns, &tables::WHITE_PAWN_OPENING)
+        - pos_score(bp.pawns, &tables::BLACK_PAWN_OPENING)
+        + pos_score(wp.rooks, &tables::WHITE_ROOK_OPENING)
+        - pos_score(bp.rooks, &tables::BLACK_ROOK_OPENING)
+        + pos_score(wp.knights, &tables::WHITE_KNIGHT_OPENING)
+        - pos_score(bp.knights, &tables::BLACK_KNIGHT_OPENING)
+        + pos_score(wp.knights, &tables::WHITE_BISHOP_OPENING)
+        - pos_score(bp.knights, &tables::BLACK_BISHOP_OPENING)
+        + pos_score(wp.queens, &tables::WHITE_QUEEN_OPENING)
+        - pos_score(bp.queens, &tables::BLACK_QUEEN_OPENING)
+        + pos_score(wp.king, &tables::WHITE_KING_OPENING)
+        - pos_score(bp.king, &tables::BLACK_KING_OPENING);
     
-    let score_endgame = pos_score(wp.get_pieces_of_type(Pawn), &positional_tables::WHITE_PAWN_ENDGAME)
-        - pos_score(bp.get_pieces_of_type(Pawn), &positional_tables::BLACK_PAWN_ENDGAME)
-        + pos_score(wp.get_pieces_of_type(Knight), &positional_tables::WHITE_KNIGHT_ENDGAME)
-        - pos_score(bp.get_pieces_of_type(Knight), &positional_tables::BLACK_KNIGHT_ENDGAME)
-        + pos_score(wp.get_pieces_of_type(Bishop), &positional_tables::WHITE_BISHOP_ENDGAME)
-        - pos_score(bp.get_pieces_of_type(Bishop), &positional_tables::BLACK_BISHOP_ENDGAME)
-        + pos_score(wp.get_pieces_of_type(Queen), &positional_tables::WHITE_QUEEN_ENDGAME)
-        - pos_score(bp.get_pieces_of_type(Queen), &positional_tables::BLACK_QUEEN_ENDGAME)
-        + pos_score(wp.get_pieces_of_type(King), &positional_tables::WHITE_KING_ENDGAME)
-        - pos_score(bp.get_pieces_of_type(King), &positional_tables::BLACK_KING_ENDGAME);  
+    let score_endgame = pos_score(wp.pawns, &tables::WHITE_PAWN_ENDGAME)
+        - pos_score(bp.pawns, &tables::BLACK_PAWN_ENDGAME)
+        + pos_score(wp.knights, &tables::WHITE_KNIGHT_ENDGAME)
+        - pos_score(bp.knights, &tables::BLACK_KNIGHT_ENDGAME)
+        + pos_score(wp.knights, &tables::WHITE_BISHOP_ENDGAME)
+        - pos_score(bp.knights, &tables::BLACK_BISHOP_ENDGAME)
+        + pos_score(wp.queens, &tables::WHITE_QUEEN_ENDGAME)
+        - pos_score(bp.queens, &tables::BLACK_QUEEN_ENDGAME)
+        + pos_score(wp.king, &tables::WHITE_KING_ENDGAME)
+        - pos_score(bp.king, &tables::BLACK_KING_ENDGAME);  
 
     eval_data.score_opening += score_opening;
     eval_data.score_endgame += score_endgame;
 }
 
 fn calc_bishop_pair_bonus(eval_data: &mut EvalData) {
-    let bonus_early = 20;
-    let bonus_late = 60;
+    let bonus_early = BISHOP_PAIR_BONUS.0;
+    let bonus_late = BISHOP_PAIR_BONUS.1;
 
     let white_pair = (eval_data.wb >= 2) as i16;
     let black_pair = (eval_data.bb >= 2) as i16;
@@ -114,7 +124,7 @@ fn calc_bishop_pair_bonus(eval_data: &mut EvalData) {
 fn calc_tempo(eval_data: &mut EvalData) {
     // Small bonus for having the right to move, only
     // in the early game
-    eval_data.score_opening += 28;
+    eval_data.score_opening += TEMPO_BONUS;
 }
 
 fn pos_score(bb: BitBoard, pos_table: &[i16]) -> i16 {
@@ -122,58 +132,58 @@ fn pos_score(bb: BitBoard, pos_table: &[i16]) -> i16 {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// Aux function to evaluate a whole bitboard of pieces of a given type
+fn eval_bitboard(bb: BitBoard, piece_type: PieceType, board: &Board, color: Color) -> ScorePair {
+    let eval_func = match piece_type {
+        Pawn => eval_pawn,
+        Knight => eval_knight,
+        Bishop => eval_bishop,
+        Rook => eval_rook,
+        Queen => eval_queen,
+        King => eval_king,
+    };
 
-impl<'a> EvalData<'a> {
-    pub fn new(board: &'a Board) -> Self {
-        let black_pieces = board.get_pieces(Black);
-        let bp = black_pieces.pawns.count() as i16;
-        let br = black_pieces.rooks.count() as i16;
-        let bn = black_pieces.knights.count() as i16;
-        let bb = black_pieces.bishops.count() as i16;
-        let bq = black_pieces.queens.count() as i16;
-
-        let white_pieces = board.get_pieces(White);
-        let wp = white_pieces.pawns.count() as i16;
-        let wr = white_pieces.rooks.count() as i16;
-        let wn = white_pieces.knights.count() as i16;
-        let wb = white_pieces.bishops.count() as i16;
-        let wq = white_pieces.queens.count() as i16;
-
-        let mut res = Self {bp, br, bn, bb, bq, wp, wr, wn, wb, wq,
-             board, white_pieces, black_pieces,
-             game_phase: 0, score_endgame: 0, score_opening: 0};
-        res.update_game_phase();
-        res
-    }
-
-    pub fn compute_score(&self) -> Evaluation {
-        // The values are temporarily promoted to i32 to avoid overflowing when
-        // multiplying by the game phase
-        let eval = ((self.score_opening as i32 * (256 - self.game_phase as i32)) + (self.score_endgame as i32 * self.game_phase as i32)) / 256;
-        Evaluation::new(eval as i16 * self.board.turn_color().sign())
-    }
-
-    fn update_game_phase(&mut self) {
-        let mut phase = 24;
-        phase -= self.wn + self.bn + self.wb + self.bb;
-        phase -= 2 * (self.wr + self.br);
-        phase -= 4 * (self.wq + self.bq);
-        self.game_phase = (phase * 256 + 12) / 24
-    }
-    
-    fn board(&self) -> &Board {
-        self.board
-    }
-
-    fn white_pieces(&self) -> &Pieces {
-        self.white_pieces
-    }
-
-    fn black_pieces(&self) -> &Pieces {
-        self.black_pieces
-    }
+    bb.piece_indices()
+        .map(|i| eval_func(i, bb, board, color))
+        .fold((0, 0), |a, b| (a.0 + b.0, a.1 + b.1))
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// Specialized functions for each piece type
+fn eval_pawn(pos: u8, bb: BitBoard, board: &Board, color: Color) -> ScorePair {
+    (PAWN_BASE_VALUE, PAWN_BASE_VALUE)
+}
+
+fn eval_bishop(pos: u8, bb: BitBoard, board: &Board, color: Color) -> ScorePair {
+    (BISHOP_BASE_VALUE, BISHOP_BASE_VALUE)
+}
+
+fn eval_knight(pos: u8, bb: BitBoard, board: &Board, color: Color) -> ScorePair {
+    (KNIGHT_BASE_VALUE, KNIGHT_BASE_VALUE)
+}
+
+fn eval_rook(pos: u8, bb: BitBoard, board: &Board, color: Color) -> ScorePair {
+    let mut mg = ROOK_BASE_VALUE;
+    let mut eg = ROOK_BASE_VALUE;
+
+    let file = tables::FILES[pos as usize % 8];
+    if (file & (board.get_pieces(White).pawns | board.get_pieces(Black).pawns)).is_empty() {
+        mg += ROOK_OPEN_FILE_BONUS.0;
+        eg += ROOK_OPEN_FILE_BONUS.1;
+    }
+
+    (mg, eg)
+}
+
+fn eval_queen(pos: u8, bb: BitBoard, board: &Board, color: Color) -> ScorePair {
+    (QUEEN_BASE_VALUE, QUEEN_BASE_VALUE)
+}
+
+fn eval_king(pos: u8, bb: BitBoard, board: &Board, color: Color) -> ScorePair {
+    (0, 0)
+}
+
+///////////////////////////////////////////////////////////////////////////////
 
 impl Evaluation {
     pub const fn new(score: i16) -> Self {
