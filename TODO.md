@@ -1,7 +1,6 @@
 A collection of ideas and things I want to implement so I dont forget
 
 # Must do
-- Experiment: don't enter a new iteration if the time for the last one > time remaining
 - Endgame tablebases/bitbases
 - Convert non-castling castling moves from the opening book
 - Better evaluation for pawns (structure, passed...)
@@ -11,6 +10,7 @@ A collection of ideas and things I want to implement so I dont forget
 - Efficient move generator for checks (must keep track of pins, checkers...)
 
 # Ideas
+- Put midgame and endgame position tables together using i16 pairs
 - Check if unmake move is faster than copy
 - Web interface updated in real time for the comparison script
 - Check if using bitboards to detect if a move is a capture is faster than the array access

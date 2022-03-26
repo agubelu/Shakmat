@@ -45,26 +45,26 @@ pub fn evaluate_position(board: &Board) -> Evaluation {
 
 // Computes the total piece score of a color, using the specialized functions
 fn calc_piece_score(eval_data: &mut EvalData) {  
-    let (wp_mg, wp_eg) = eval_bitboard(eval_data.white_pieces.pawns, Pawn, eval_data.board, White);
-    let (bp_mg, bp_eg) = eval_bitboard(eval_data.black_pieces.pawns, Pawn, eval_data.board, Black);
+    let (wp_mg, wp_eg) = eval_bitboard(eval_data.white_pieces.pawns, Pawn, White, eval_data);
+    let (bp_mg, bp_eg) = eval_bitboard(eval_data.black_pieces.pawns, Pawn, Black, eval_data);
 
-    let (wb_mg, wb_eg) = eval_bitboard(eval_data.white_pieces.bishops, Bishop, eval_data.board, White);
-    let (bb_mg, bb_eg) = eval_bitboard(eval_data.black_pieces.bishops, Bishop, eval_data.board, Black);
+    let (wb_mg, wb_eg) = eval_bitboard(eval_data.white_pieces.bishops, Bishop, White, eval_data);
+    let (bb_mg, bb_eg) = eval_bitboard(eval_data.black_pieces.bishops, Bishop, Black, eval_data);
 
-    let (wn_mg, wn_eg) = eval_bitboard(eval_data.white_pieces.knights, Knight, eval_data.board, White);
-    let (bn_mg, bn_eg) = eval_bitboard(eval_data.black_pieces.knights, Knight, eval_data.board, Black);
+    let (wn_mg, wn_eg) = eval_bitboard(eval_data.white_pieces.knights, Knight, White, eval_data);
+    let (bn_mg, bn_eg) = eval_bitboard(eval_data.black_pieces.knights, Knight, Black, eval_data);
 
-    let (wr_mg, wr_eg) = eval_bitboard(eval_data.white_pieces.rooks, Rook, eval_data.board, White);
-    let (br_mg, br_eg) = eval_bitboard(eval_data.black_pieces.rooks, Rook, eval_data.board, Black);
+    let (wr_mg, wr_eg) = eval_bitboard(eval_data.white_pieces.rooks, Rook, White, eval_data);
+    let (br_mg, br_eg) = eval_bitboard(eval_data.black_pieces.rooks, Rook, Black, eval_data);
 
-    let (wq_mg, wq_eg) = eval_bitboard(eval_data.white_pieces.queens, Queen, eval_data.board, White);
-    let (bq_mg, bq_eg) = eval_bitboard(eval_data.black_pieces.queens, Queen, eval_data.board, Black);
+    let (wq_mg, wq_eg) = eval_bitboard(eval_data.white_pieces.queens, Queen, White, eval_data);
+    let (bq_mg, bq_eg) = eval_bitboard(eval_data.black_pieces.queens, Queen, Black, eval_data);
 
-    let (wk_mg, wk_eg) = eval_bitboard(eval_data.white_pieces.king, King, eval_data.board, White);
-    let (bk_mg, bk_eg) = eval_bitboard(eval_data.black_pieces.king, King, eval_data.board, Black);
+    let (wk_mg, wk_eg) = eval_bitboard(eval_data.white_pieces.king, King, White, eval_data);
+    let (bk_mg, bk_eg) = eval_bitboard(eval_data.black_pieces.king, King, Black, eval_data);
 
-    eval_data.score_opening = wp_mg + wb_mg + wn_mg + wr_mg + wq_mg + wk_mg - bp_mg - bb_mg - bn_mg - br_mg - bq_mg - bk_mg;
-    eval_data.score_endgame = wp_eg + wb_eg + wn_eg + wr_eg + wq_eg + wk_eg - bp_eg - bb_eg - bn_eg - br_eg - bq_eg - bk_eg;
+    eval_data.score_opening += wp_mg + wb_mg + wn_mg + wr_mg + wq_mg + wk_mg - bp_mg - bb_mg - bn_mg - br_mg - bq_mg - bk_mg;
+    eval_data.score_endgame += wp_eg + wb_eg + wn_eg + wr_eg + wq_eg + wk_eg - bp_eg - bb_eg - bn_eg - br_eg - bq_eg - bk_eg;
 }
 
 // Gives an extra centipoint for each square controlled, and 2 points
@@ -133,7 +133,7 @@ fn pos_score(bb: BitBoard, pos_table: &[i16]) -> i16 {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Aux function to evaluate a whole bitboard of pieces of a given type
-fn eval_bitboard(bb: BitBoard, piece_type: PieceType, board: &Board, color: Color) -> ScorePair {
+fn eval_bitboard(bb: BitBoard, piece_type: PieceType, color: Color, eval_data: &EvalData) -> ScorePair {
     let eval_func = match piece_type {
         Pawn => eval_pawn,
         Knight => eval_knight,
@@ -144,30 +144,47 @@ fn eval_bitboard(bb: BitBoard, piece_type: PieceType, board: &Board, color: Colo
     };
 
     bb.piece_indices()
-        .map(|i| eval_func(i, bb, board, color))
+        .map(|i| eval_func(i, bb, color, eval_data))
         .fold((0, 0), |a, b| (a.0 + b.0, a.1 + b.1))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Specialized functions for each piece type
-fn eval_pawn(pos: u8, bb: BitBoard, board: &Board, color: Color) -> ScorePair {
-    (PAWN_BASE_VALUE, PAWN_BASE_VALUE)
+fn eval_pawn(pos: u8, _: BitBoard, color: Color, eval_data: &EvalData) -> ScorePair {
+    let mut mg = PAWN_BASE_VALUE;
+    let mut eg = PAWN_BASE_VALUE;
+
+    // Check if this is a passed pawn, and add bonuses acordingly
+    let (enemy_pawns, passed_mask, rel_rank) = match color {
+        White => (eval_data.black_pieces.pawns, &tables::WHITE_PASSED_MASK, pos / 8),
+        Black => (eval_data.white_pieces.pawns, &tables::BLACK_PASSED_MASK, 8 - (pos / 8)),
+    };
+
+    if (enemy_pawns & passed_mask[pos as usize]).is_empty() {
+        // This pawn is a passer, assign a bonus depending on its relative rank
+        let r = rel_rank as i16;
+        let rr = r * (r-1);
+        mg += 20 * rr;
+        eg += 10 * (rr + r + 1);
+    }
+
+    (mg, eg)
 }
 
-fn eval_bishop(pos: u8, bb: BitBoard, board: &Board, color: Color) -> ScorePair {
+fn eval_bishop(pos: u8, bb: BitBoard, color: Color, eval_data: &EvalData) -> ScorePair {
     (BISHOP_BASE_VALUE, BISHOP_BASE_VALUE)
 }
 
-fn eval_knight(pos: u8, bb: BitBoard, board: &Board, color: Color) -> ScorePair {
+fn eval_knight(pos: u8, bb: BitBoard, color: Color, eval_data: &EvalData) -> ScorePair {
     (KNIGHT_BASE_VALUE, KNIGHT_BASE_VALUE)
 }
 
-fn eval_rook(pos: u8, bb: BitBoard, board: &Board, color: Color) -> ScorePair {
+fn eval_rook(pos: u8, bb: BitBoard, color: Color, eval_data: &EvalData) -> ScorePair {
     let mut mg = ROOK_BASE_VALUE;
     let mut eg = ROOK_BASE_VALUE;
 
     let file = tables::FILES[pos as usize % 8];
-    if (file & (board.get_pieces(White).pawns | board.get_pieces(Black).pawns)).is_empty() {
+    if (file & (eval_data.white_pieces.pawns | eval_data.black_pieces.pawns)).is_empty() {
         mg += ROOK_OPEN_FILE_BONUS.0;
         eg += ROOK_OPEN_FILE_BONUS.1;
     }
@@ -175,11 +192,11 @@ fn eval_rook(pos: u8, bb: BitBoard, board: &Board, color: Color) -> ScorePair {
     (mg, eg)
 }
 
-fn eval_queen(pos: u8, bb: BitBoard, board: &Board, color: Color) -> ScorePair {
+fn eval_queen(pos: u8, bb: BitBoard, color: Color, eval_data: &EvalData) -> ScorePair {
     (QUEEN_BASE_VALUE, QUEEN_BASE_VALUE)
 }
 
-fn eval_king(pos: u8, bb: BitBoard, board: &Board, color: Color) -> ScorePair {
+fn eval_king(pos: u8, bb: BitBoard, color: Color, eval_data: &EvalData) -> ScorePair {
     (0, 0)
 }
 
