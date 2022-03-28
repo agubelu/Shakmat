@@ -42,8 +42,8 @@ impl Move {
         // of if it's an en passant pawn capture
         // TO-DO: Check if this is faster than using board.piece_on()
         match self {
-            Self::Normal {to, ..} => !(BitBoard::from_square(*to) & (board.get_all_bitboard() | board.ep_square())).is_empty(),
-            Self::PawnPromotion {to, ..} => !(BitBoard::from_square(*to) & board.get_all_bitboard()).is_empty(),
+            Self::Normal {to, ..} => (BitBoard::from_square(*to) & (board.get_all_bitboard() | board.ep_square())).is_not_empty(),
+            Self::PawnPromotion {to, ..} => (BitBoard::from_square(*to) & board.get_all_bitboard()).is_not_empty(),
             _ => false
         }
     }

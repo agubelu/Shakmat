@@ -171,8 +171,8 @@ impl Board {
 
     pub fn is_check(&self, color: Color) -> bool {
         match color {
-            White => !(self.white_pieces.king & self.black_attacks).is_empty(),
-            Black => !(self.black_pieces.king & self.white_attacks).is_empty()
+            White => (self.white_pieces.king & self.black_attacks).is_not_empty(),
+            Black => (self.black_pieces.king & self.white_attacks).is_not_empty()
         }
     }
 
@@ -306,7 +306,7 @@ impl Board {
             self.zobrist_key ^= zobrist::get_key_for_piece(Pawn, enemy_color, target_ep);
             
         // Not an en-passant, just a normal capture
-        } else if !(enemy_pieces & to_bb).is_empty() {
+        } else if (enemy_pieces & to_bb).is_not_empty() {
             self.get_pieces_mut(enemy_color).apply_mask(!to_bb);
             captured_piece = *self.piece_on(movement.to());
             // Update the zobrist key (no need to update piece_on_square since it'll be overwritten)
