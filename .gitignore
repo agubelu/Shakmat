@@ -2,3 +2,4 @@
 etc/out/*
 !etc/out/.gitkeep
 etc/~*
+etc/venv/

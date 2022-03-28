@@ -8,6 +8,10 @@ from os import remove
 import sys
 import chess
 import chess.pgn
+import colorama
+from colorama import Fore, Back, Style
+
+colorama.init()
 
 OLD_VER = {"port": int(sys.argv[2]), "name": sys.argv[1]}
 NEW_VER = {"port":  int(sys.argv[4]), "name": sys.argv[3]}
@@ -188,13 +192,13 @@ if isfile(FILE_PGN):
 for i, opening_line in enumerate(openings, start=1):
     print(f"Opening {i}, game 1... ", end="", flush=True)
     res = Match(old_engine, new_engine, opening_line).play()
-    d = {"W": OLD_VER["name"], "B": NEW_VER["name"], "D": "Draw"}
-    print(d[res], flush=True)
+    d = {"W": Fore.RED + OLD_VER["name"], "B": Fore.GREEN + NEW_VER["name"], "D": Fore.YELLOW + "Draw"}
+    print(d[res]+ Style.RESET_ALL, flush=True)
 
     print(f"Opening {i}, game 2... ", end="", flush=True)
     res = Match(new_engine, old_engine, opening_line).play()
-    d = {"B": OLD_VER["name"], "W": NEW_VER["name"], "D": "Draw"}
-    print(d[res], flush=True)
+    d = {"B": Fore.RED + OLD_VER["name"], "W": Fore.GREEN + NEW_VER["name"], "D": Fore.YELLOW + "Draw"}
+    print(d[res] + Style.RESET_ALL, flush=True)
 
 with open("out/scores.json", "w") as f:
     f.write(dumps({OLD_VER["name"]: old_engine.scores, NEW_VER["name"]: new_engine.scores}))
