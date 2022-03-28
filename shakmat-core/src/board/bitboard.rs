@@ -36,6 +36,10 @@ impl BitBoard {
         self.bb == 0
     }
 
+    pub fn is_not_empty(&self) -> bool {
+        self.bb != 0
+    }
+
     pub fn piece_indices(&self) -> PieceIndexIter {
         PieceIndexIter { value: self.bb }
     }

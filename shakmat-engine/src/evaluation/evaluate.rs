@@ -27,10 +27,12 @@ const QUEEN_BASE_VALUE: i16 = 900;
 
 const TEMPO_BONUS: i16 = 28;
 const BISHOP_PAIR_BONUS: ScorePair = (20, 60);
-const ROOK_OPEN_FILE_BONUS: ScorePair = (20, 20);
+const ROOK_OPEN_FILE_BONUS: ScorePair = (50, 25);
+const ROOK_SEMIOPEN_FILE_BONUS: ScorePair = (20, 10);
+const ROOK_CLOSED_FILE_PENALTY: ScorePair = (-10, -5);
 
-const PASSED_PAWN_BONUS_MG: [i16; 8] = [0, 10, 5, 1, 15, 50, 100, 0];
-const PASSED_PAWN_BONUS_EG: [i16; 8] = [0, 1, 5, 25, 50, 100, 150, 0];
+const PASSED_PAWN_BONUS_MG: [i16; 8] = [0, 10, 5,  1, 15,  50, 100, 0];
+const PASSED_PAWN_BONUS_EG: [i16; 8] = [0,  1, 5, 25, 50, 100, 150, 0];
 
 // Evaluate how favorable a position is for the current side to move
 // A positive score favors the current side, while a negative one
@@ -185,7 +187,22 @@ fn eval_rook(pos: u8, bb: BitBoard, color: Color, eval_data: &EvalData) -> Score
     let mut eg = ROOK_BASE_VALUE;
 
     let file = tables::FILES[pos as usize % 8];
-    if (file & (eval_data.white_pieces.pawns | eval_data.black_pieces.pawns)).is_empty() {
+    let (friendly_pawns, enemy_pawns) = match color {
+        White => (eval_data.white_pieces.pawns, eval_data.black_pieces.pawns),
+        Black => (eval_data.black_pieces.pawns, eval_data.white_pieces.pawns),
+    };
+
+    // Check if the rook is in a closed, semi-open or open file
+    if (file & friendly_pawns).is_not_empty() {
+        // Friendly pawns on this file, we consider it closed and substract a penalty
+        mg += ROOK_CLOSED_FILE_PENALTY.0;
+        eg += ROOK_CLOSED_FILE_PENALTY.1;
+    } else if (file & enemy_pawns).is_not_empty() {
+        // Only enemy pawns, we consider it semi-open and add a bonus
+        mg += ROOK_SEMIOPEN_FILE_BONUS.0;
+        eg += ROOK_SEMIOPEN_FILE_BONUS.1;
+    } else {
+        // No pawns, we consider it open
         mg += ROOK_OPEN_FILE_BONUS.0;
         eg += ROOK_OPEN_FILE_BONUS.1;
     }
