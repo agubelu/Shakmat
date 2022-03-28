@@ -29,6 +29,9 @@ const TEMPO_BONUS: i16 = 28;
 const BISHOP_PAIR_BONUS: ScorePair = (20, 60);
 const ROOK_OPEN_FILE_BONUS: ScorePair = (20, 20);
 
+const PASSED_PAWN_BONUS_MG: [i16; 8] = [0, 10, 5, 1, 15, 50, 100, 0];
+const PASSED_PAWN_BONUS_EG: [i16; 8] = [0, 1, 5, 25, 50, 100, 150, 0];
+
 // Evaluate how favorable a position is for the current side to move
 // A positive score favors the current side, while a negative one
 // favors the rival.
@@ -157,15 +160,13 @@ fn eval_pawn(pos: u8, _: BitBoard, color: Color, eval_data: &EvalData) -> ScoreP
     // Check if this is a passed pawn, and add bonuses acordingly
     let (enemy_pawns, passed_mask, rel_rank) = match color {
         White => (eval_data.black_pieces.pawns, &tables::WHITE_PASSED_MASK, pos / 8),
-        Black => (eval_data.white_pieces.pawns, &tables::BLACK_PASSED_MASK, 8 - (pos / 8)),
+        Black => (eval_data.white_pieces.pawns, &tables::BLACK_PASSED_MASK, 7 - (pos / 8)),
     };
 
     if (enemy_pawns & passed_mask[pos as usize]).is_empty() {
         // This pawn is a passer, assign a bonus depending on its relative rank
-        let r = rel_rank as i16;
-        let rr = r * (r-1);
-        mg += 20 * rr;
-        eg += 10 * (rr + r + 1);
+        mg += PASSED_PAWN_BONUS_MG[rel_rank as usize];
+        eg += PASSED_PAWN_BONUS_EG[rel_rank as usize];
     }
 
     (mg, eg)
