@@ -1,5 +1,5 @@
 use shakmat_core::{Board, Move, PieceType::*};
-use std::cmp::min;
+use std::cmp::{min, max};
 
 use crate::evaluation::{evaluate_position, Evaluation};
 use crate::move_ordering::{order_moves, RatedMove};
@@ -126,7 +126,7 @@ impl Search {
             // Because we use an "always-replace" scheme, it is guaranteed that the best
             // move for the root position will be stored there when the search finishes.
             // The call to tt.get_entry() writes to the best_move parameter
-            self.tt.get_entry(board.zobrist_key(), 0, Evaluation::min_val(), Evaluation::max_val(), &mut best_move);
+            self.tt.get_entry(board.zobrist_key(), 0, &mut best_move);
 
             // If the currest best score is a forced mate, either for us or for
             // the opponent, return the move right away.
@@ -179,7 +179,7 @@ impl Search {
         mut depth_remaining: u8, 
         current_depth: u8, 
         mut alpha: Evaluation,
-        beta: Evaluation, 
+        mut beta: Evaluation,
         can_null: bool,
     ) -> Evaluation {
         self.node_count += 1;
@@ -213,8 +213,17 @@ impl Search {
         // stored zobrist key matches.
         let mut tt_move = None;
         let zobrist = board.zobrist_key();
-        if let Some(eval) = self.tt.get_entry(zobrist, depth_remaining, alpha, beta, &mut tt_move) {
-            return eval;
+        if let Some(tt_data) = self.tt.get_entry(zobrist, depth_remaining, &mut tt_move) {
+            let tt_score = tt_data.eval_score();
+            match tt_data.node_type() {
+                NodeType::Exact => return tt_score,
+                NodeType::Lowerbound => alpha = max(alpha, tt_score),
+                NodeType::Upperbound => beta = min(beta, tt_score),
+            };
+
+            if alpha >= beta {
+                return tt_score;
+            }
         }
 
         // If this is an immediate draw, we don't have to do anything else
@@ -276,7 +285,7 @@ impl Search {
 
         let mut best_score = Evaluation::min_val();
         let mut best_move = None;
-        let mut node_type = NodeType::AlphaCutoff;
+        let mut node_type = NodeType::Upperbound;
 
         // We use the pseudolegal move generator to construct the new board ourselves
         // and filter out moves that result in illegal positions. This is exactly what
@@ -377,7 +386,7 @@ impl Search {
                 // This move is "too good", its score is higher than what our
                 // opponent can guarantee earlier in the search. So, we assume
                 // that they will avoid this position, and stop evaluating it.
-                node_type = NodeType::BetaCutoff;
+                node_type = NodeType::Lowerbound;
 
                 // Check if the current move is a killer move, and in that case,
                 // store it. Note that we must pass the *previous* board, to

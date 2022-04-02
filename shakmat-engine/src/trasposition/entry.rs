@@ -18,7 +18,7 @@ pub struct TTData {
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum NodeType {
-    Exact, AlphaCutoff, BetaCutoff
+    Exact, Upperbound, Lowerbound
 }
 
 impl TTEntry {
