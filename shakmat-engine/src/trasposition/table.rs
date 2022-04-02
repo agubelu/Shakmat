@@ -38,6 +38,7 @@ impl TTable {
         if entry.zobrist() == zobrist_key {
             let entry_data = unsafe { entry.data().assume_init() };
             *tt_move = entry_data.best_move;
+            return None;
 
             if entry_data.depth >= depth {
                 let node_type = entry_data.node_type();
