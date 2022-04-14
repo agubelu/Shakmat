@@ -21,7 +21,7 @@ impl PVLine {
 
     pub fn update_line(&mut self, mv: Move, child_line: &mut Self) {
         self.clear();
-        self.moves[0] = mv;
+        self.moves.push(mv);
         self.moves.append(&mut child_line.moves);
     }
 }
