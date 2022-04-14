@@ -1,6 +1,5 @@
 mod engine;
 mod evaluation;
-mod move_ordering;
 mod polyglot;
 mod search;
 mod time;

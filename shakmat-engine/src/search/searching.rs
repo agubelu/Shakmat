@@ -1,8 +1,9 @@
 use shakmat_core::{Board, Move, PieceType::*};
 use std::cmp::{min, max};
 
+use super::move_ordering::{order_moves, RatedMove};
+use super::pv_line::PVLine;
 use crate::evaluation::{evaluate_position, Evaluation};
-use crate::move_ordering::{order_moves, RatedMove};
 use crate::trasposition::{TTable, TTEntry, NodeType};
 use crate::time::TimeManager;
 
@@ -33,6 +34,9 @@ const FUTILIY_MARGINS: [i16; 6] = [0, 100, 160, 220, 280, 340];
 
 // Typedef for the killer moves table
 pub type Killers = [[Move; MAX_KILLERS]; LIMIT_DEPTH + 1];
+
+// Typedef for the pair (alpha, beta) of score bounds
+pub type Bounds = (Evaluation, Evaluation);
 
 // The Search struct contains all necessary parameters for the search and stores
 // relevant information between iterations. All search-related functions
@@ -95,9 +99,13 @@ impl Search {
         // search as the temptative best move in this one in the move ordering, which makes
         // the alpha-beta pruning remove many more branches during the search.
         let mut depth = 1;
+
+        // The PV line found by the engine
+        let mut pv_line = PVLine::new();
+
         while depth <= self.max_depth && !self.timer.times_up() {
             let t_start = self.timer.elapsed_micros();
-            score = self.negamax(board, depth, 0, alpha, beta, true);
+            score = self.negamax(board, depth, 0, (alpha, beta), true, &mut pv_line);
             let search_time = self.timer.elapsed_micros() - t_start;
 
             // If we ran out of time during the search, stop and
@@ -122,11 +130,8 @@ impl Search {
                 continue;
             }
 
-            // The best move will be stored in the corresponding entry in the transposition table.
-            // Because we use an "always-replace" scheme, it is guaranteed that the best
-            // move for the root position will be stored there when the search finishes.
-            // The call to tt.get_entry() writes to the best_move parameter
-            self.tt.get_entry(board.zobrist_key(), 0, &mut best_move);
+            // The best move will be the first one in the PV line
+            best_move = pv_line.first();
 
             // If the currest best score is a forced mate, either for us or for
             // the opponent, return the move right away.
@@ -178,9 +183,9 @@ impl Search {
         board: &Board, 
         mut depth_remaining: u8, 
         current_depth: u8, 
-        mut alpha: Evaluation,
-        mut beta: Evaluation,
+        (mut alpha, mut beta): Bounds,
         can_null: bool,
+        pv_line: &mut PVLine,
     ) -> Evaluation {
         self.node_count += 1;
 
@@ -244,8 +249,11 @@ impl Search {
         // If we are on a leaf node, use the quiesence search to make sure the
         // static evaluation is reliable
         if depth_remaining == 0 {
-            return self.quiesence_search(board, current_depth, alpha, beta);
+            return self.quiesence_search(board, current_depth, alpha, beta, pv_line);
         }
+
+        // PV line for the recursive calls
+        let mut next_pv_line = PVLine::new();
 
         // Null move pruning: pass the turn, and see if the opponent can improve
         // their position playing two turns in a row doing a reduced depth
@@ -259,7 +267,7 @@ impl Search {
 
         if can_null && !is_check && depth_remaining > NULL_MOVE_REDUCTION && !board.only_pawns_or_endgame() && !is_pv {
             let new_board = board.make_null_move();
-            let score = -self.negamax(&new_board, depth_remaining - NULL_MOVE_REDUCTION - 1, current_depth + 1, -beta, -beta + 1, false);
+            let score = -self.negamax(&new_board, depth_remaining - NULL_MOVE_REDUCTION - 1, current_depth + 1, (-beta, -beta + 1), false, &mut next_pv_line);
 
             // If the opponent can't improve their position, return beta
             if score >= beta && !score.is_positive_mate() {
@@ -346,21 +354,21 @@ impl Search {
 
             // If we are reducing, try to search with reduced depth first
             if red != 0 {
-                score = -self.negamax(&next_board, depth_remaining - red, current_depth + 1, (-alpha)-1, -alpha, true);
+                score = -self.negamax(&next_board, depth_remaining - red, current_depth + 1, ((-alpha)-1, -alpha), true, &mut next_pv_line);
                 // If the reduced search fails low, we don't have to search using full depth
                 do_full_depth = score > alpha;
             }
 
             // Since the moves are ordered, only evaluate the first move with a full window
             if analyzed_moves == 0 {
-                score = -self.negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -alpha, true);
+                score = -self.negamax(&next_board, depth_remaining - 1, current_depth + 1, (-beta, -alpha), true, &mut next_pv_line);
             } else if do_full_depth {
                 // Try a minimal window first. If the value falls under [alpha, beta] then use the standard window
-                score = -self.negamax(&next_board, depth_remaining - 1, current_depth + 1, (-alpha)-1, -alpha, true);
+                score = -self.negamax(&next_board, depth_remaining - 1, current_depth + 1, ((-alpha)-1, -alpha), true, &mut next_pv_line);
 
                 if score > alpha && score < beta {
                     // Do a full evaluation since the position was not significantly worsened
-                    score = -self.negamax(&next_board, depth_remaining - 1, current_depth + 1, -beta, -alpha, true);
+                    score = -self.negamax(&next_board, depth_remaining - 1, current_depth + 1, (-beta, -alpha), true, &mut next_pv_line);
                 }
             };
 
@@ -371,9 +379,10 @@ impl Search {
             // Update alpha, beta and the scores
             if score > best_score {
                 // This move improves our previous score, update the score
-                // and the current new move
+                // and the current new move with the PV line
                 best_move = Some(mv);
                 best_score = score;
+                pv_line.update_line(mv, &mut next_pv_line);
             }
 
             if best_score > alpha {
@@ -394,6 +403,9 @@ impl Search {
                 store_possible_killer(current_depth, board, mv, &mut self.killers);
                 break;
             }
+
+            // Clear the next PV line for the following iteration
+            next_pv_line.clear();
         }
 
         // Check the time again after the recursive calls. The value returned
@@ -425,7 +437,14 @@ impl Search {
     // expands captures. This runs in terminal nodes in the standard search, and mitigates
     // the horizon effect by making sure that we are not misevaluating a position where
     // a piece is hanging and can be easily captured in the next move.
-    fn quiesence_search(&mut self, board: &Board, current_depth: u8, mut alpha: Evaluation, beta: Evaluation) -> Evaluation {
+    fn quiesence_search(
+        &mut self, 
+        board: &Board, 
+        current_depth: u8, 
+        mut alpha: Evaluation, 
+        beta: Evaluation,
+        pv_line: &mut PVLine
+    ) -> Evaluation {
         self.node_count += 1;
 
         // If, for some reason, we go past the limit depth, return the static
@@ -455,6 +474,8 @@ impl Search {
             alpha = static_score;
         }
 
+        let mut next_pv_line = PVLine::new();
+
         // Only consider moves that are captures or pawn promotions
         let moves = board.pseudolegal_caps();
         for RatedMove{mv, ..} in order_moves(moves, board, None, &self.killers[current_depth as usize]) {
@@ -466,13 +487,18 @@ impl Search {
                 continue;
             }
 
-            let next_score = -self.quiesence_search(&next_board, current_depth + 1, -beta, -alpha);
+            let next_score = -self.quiesence_search(&next_board, current_depth + 1, -beta, -alpha, &mut next_pv_line);
 
             if next_score >= beta {
                 return beta;
             } else if next_score > alpha {
                 alpha = next_score;
+                // Update the PV line
+                pv_line.update_line(mv, &mut next_pv_line);
             }
+
+            // Clear the next PV line for the next iteration
+            next_pv_line.clear();
         }
 
         alpha

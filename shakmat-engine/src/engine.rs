@@ -2,7 +2,7 @@ use shakmat_core::Board;
 
 use crate::evaluation::Evaluation;
 use crate::polyglot::OpeningBook;
-use crate::search::{Search, SearchResult, SearchOptions};
+use crate::search::{SearchResult, SearchOptions, Search};
 
 pub struct ShakmatEngine {
     book: OpeningBook,
