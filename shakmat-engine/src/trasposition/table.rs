@@ -1,7 +1,7 @@
 use std::mem::MaybeUninit;
 use shakmat_core::Move;
 
-use super::{TTEntry, TTData};
+use super::{TTEntry, TTData, NodeType};
 
 // Operations with the trasposition table are unsafe, as it is intended for
 // lock-less multithreaded use, and data races will occur. It is up to us
@@ -48,10 +48,32 @@ impl TTable {
         }
     }
 
+    // We only replace an entity if any of the following is true:
+    // - The zobrist key is different
+    // - The new depth is higher
+    // - The stored entry has a different flag and it's not exact
     pub fn write_entry(&self, zobrist_key: u64, entry: TTEntry) {
         let index = zobrist_key as usize % self.size;
-        unsafe {
-            *self.ptr.add(index) = MaybeUninit::new(entry);
+        let prev_entry = unsafe {
+            (*self.ptr.add(index)).assume_init()
+        };
+
+        if prev_entry.zobrist() != zobrist_key {
+            // The previous zobrist is different (or zero), overwrite the entry
+            unsafe {
+                *self.ptr.add(index) = MaybeUninit::new(entry);
+            }
+        } else {
+            // The previous zobrist is the same, check if the new entry is better
+            let prev_data = unsafe { prev_entry.data().assume_init() };
+            let new_data = unsafe { entry.data().assume_init() };
+
+            if new_data.depth > prev_data.depth || 
+               (new_data.node_type() != prev_data.node_type() && prev_data.node_type() != NodeType::Exact) {
+                    unsafe {
+                        *self.ptr.add(index) = MaybeUninit::new(entry);
+                    }
+               }
         }
     }
 }
