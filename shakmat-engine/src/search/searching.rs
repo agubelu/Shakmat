@@ -1,7 +1,7 @@
 use shakmat_core::{Board, Move, PieceType::*};
 use std::cmp::{min, max};
 
-use super::move_ordering::{order_moves, RatedMove};
+use super::move_ordering::{order_moves, RatedMove, MoveScore};
 use super::pv_line::PVLine;
 use super::history::HistoryTable;
 use crate::evaluation::{evaluate_position, Evaluation};
@@ -524,8 +524,9 @@ impl Search {
         // We only need to update histories if the best move is a quiet one
         if !best_move.is_capture(board) {
             let color = board.turn_color();
+            let bonus = (depth as MoveScore) * (depth as MoveScore);
             // Increase stats for the best move and store it as a killer
-            self.history.add_bonus(best_move, color, depth);
+            self.history.add_bonus(best_move, color, bonus);
             let i = depth as usize;
             if *best_move != self.killers[i][0] {
                 self.killers[i][1] = self.killers[i][0];
@@ -534,7 +535,7 @@ impl Search {
 
             // Decrease history stats for the other quiet moves
             quiet_moves.iter().for_each(|mv| {
-                self.history.sub_bonus(mv, color);
+                self.history.add_bonus(mv, color, -bonus);
             });
         }
     }

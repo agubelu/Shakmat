@@ -16,8 +16,7 @@ impl HistoryTable {
         self.data[color.to_index()][from][to]
     } 
 
-    pub fn add_bonus(&mut self, mv: &Move, color: Color, depth: u8) {
-        let bonus = (depth as MoveScore) * (depth as MoveScore);
+    pub fn add_bonus(&mut self, mv: &Move, color: Color, bonus: MoveScore) {
         let (from, to) = get_from_to(mv, color);
         
         let newval = self.data[color.to_index()][from][to] + bonus;
@@ -27,11 +26,6 @@ impl HistoryTable {
         if newval > MAX_HISTORY_VAL {
             self.age();
         }
-    }
-
-    pub fn sub_bonus(&mut self, mv: &Move, color: Color) {
-        let (from, to) = get_from_to(mv, color);
-        self.data[color.to_index()][from][to] -= 1;
     }
 
     pub fn age(&mut self) {

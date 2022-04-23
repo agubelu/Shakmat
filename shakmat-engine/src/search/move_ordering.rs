@@ -39,9 +39,9 @@ pub fn order_moves(moves: Vec<Move>, board: &Board, tt_move: Option<Move>, kille
 fn rate_move(mv: Move, pv_move: Option<Move>, board: &Board, killers: &[Move], history: &HistoryTable) -> RatedMove {
     let score = if pv_move == Some(mv) {
         TT_MOVE
-    } else if matches!(mv, Move::Normal{to, ..} | Move::PawnPromotion{to, ..} if to == board.last_moved()) {
-        // Note: the "if" applies to both patterns, not just the PawnPromotion move
-        LAST_RECAPTURE
+    // } else if matches!(mv, Move::Normal{to, ..} | Move::PawnPromotion{to, ..} if to == board.last_moved()) {
+    //     // Note: the "if" applies to both patterns, not just the PawnPromotion move
+    //     LAST_RECAPTURE
     } else if let Some(captured) = mv.piece_captured(board) {
         CAPTURE_BASE_VAL + value_of_capture(captured) - value_of_attacker(mv.piece_moving(board))
     }  else if killers[0] == mv {
