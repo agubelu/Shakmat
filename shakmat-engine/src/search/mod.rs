@@ -1,3 +1,4 @@
+mod history;
 mod move_ordering;
 mod pv_line;
 mod searching;

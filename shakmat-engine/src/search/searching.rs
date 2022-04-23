@@ -3,6 +3,7 @@ use std::cmp::{min, max};
 
 use super::move_ordering::{order_moves, RatedMove};
 use super::pv_line::PVLine;
+use super::history::HistoryTable;
 use crate::evaluation::{evaluate_position, Evaluation};
 use crate::trasposition::{TTable, TTEntry, NodeType};
 use crate::time::TimeManager;
@@ -48,6 +49,7 @@ pub struct Search {
     killers: Killers,
     tt: TTable,
     node_count: u32,
+    history: HistoryTable,
 }
 
 // The SearchConfig struct contains a series of parameters for the search
@@ -73,7 +75,8 @@ impl Search {
             tt: TTable::new(TRASPOSITION_TABLE_SIZE),
             killers: [[Move::empty(); MAX_KILLERS]; LIMIT_DEPTH + 1],
             node_count: 0,
-            past_positions: past_positions.to_vec()
+            past_positions: past_positions.to_vec(),
+            history: HistoryTable::new(),
         }
     }
 
@@ -300,8 +303,12 @@ impl Search {
         // board.legal_moves() does, so this way we avoid doing it twice.
         let moves = board.pseudolegal_moves();
         let mut analyzed_moves = 0;
+        let rated_moves = order_moves(moves, board, tt_move, &self.killers[current_depth as usize], &self.history);
 
-        for RatedMove{mv, ..} in order_moves(moves, board, tt_move, &self.killers[current_depth as usize]) {
+        // A list with the quiet (non-capture) moves that we have analyzed
+        let mut analyzed_quiets = Vec::with_capacity(64);
+
+        for RatedMove{mv, ..} in rated_moves {
             let next_board = board.make_move(&mv);
 
             // This is a pseudo-legal move, we must make sure that the side moving is not in check.
@@ -317,7 +324,8 @@ impl Search {
             // captures, promotions, PV nodes, shallow depth, killers and pawn moves
             // Also, we never reduce at the root
             let gives_check = next_board.is_check(next_board.turn_color());
-            let cap_or_prom = matches!(mv, Move::PawnPromotion{..}) || mv.is_capture(board);
+            let is_capture = mv.is_capture(board);
+            let cap_or_prom = is_capture || matches!(mv, Move::PawnPromotion{..});
             let is_pawn_move = mv.piece_moving(board) == Pawn;
             let is_tactical = is_check || gives_check || cap_or_prom || is_pawn_move || self.is_killer(&mv, current_depth);
 
@@ -396,12 +404,12 @@ impl Search {
                 // opponent can guarantee earlier in the search. So, we assume
                 // that they will avoid this position, and stop evaluating it.
                 node_type = NodeType::Lowerbound;
-
-                // Check if the current move is a killer move, and in that case,
-                // store it. Note that we must pass the *previous* board, to
-                // determine if the move was a capture
-                store_possible_killer(current_depth, board, mv, &mut self.killers);
                 break;
+            }
+
+            // If the current move is not the best and it's quiet, store it
+            if Some(mv) != best_move && !is_capture {
+                analyzed_quiets.push(mv);
             }
 
             // Clear the next PV line for the following iteration
@@ -414,10 +422,13 @@ impl Search {
             return Evaluation::new(0);
         }
 
-        // If we have no best move, no legal moves are available. 
-        // Check whether this is a checkmate or a draw, and assign
-        // the corresponding score.
-        if best_move.is_none() {
+        // If we have a best move, update history stats and killers
+        if let Some(bm) = best_move {
+            self.update_histories(&bm, &analyzed_quiets, board, depth_remaining);
+        } else {
+            // Otherwise, there are no legal moves available.
+            // Check whether this is a checkmate or a draw, and assign
+            // the corresponding score.
             best_score = if board.is_check(color_moving) {
                 // Checkmate
                 Evaluation::min_val() + current_depth as i16
@@ -478,7 +489,8 @@ impl Search {
 
         // Only consider moves that are captures or pawn promotions
         let moves = board.pseudolegal_caps();
-        for RatedMove{mv, ..} in order_moves(moves, board, None, &self.killers[current_depth as usize]) {
+        let rated_moves = order_moves(moves, board, None, &self.killers[current_depth as usize], &self.history);
+        for RatedMove{mv, ..} in rated_moves {
             // As in the normal search, we are using pseudolegal moves, so we must make sure that
             // the moving side is not in check. Castling moves are not generated now so we
             // don't have to worry about them
@@ -506,6 +518,25 @@ impl Search {
 
     fn is_killer(&self, mv: &Move, depth: u8) -> bool {
         self.killers[depth as usize][0] == *mv || self.killers[depth as usize][1] == *mv
+    }
+
+    fn update_histories(&mut self, best_move: &Move, quiet_moves: &[Move], board: &Board, depth: u8) {
+        // We only need to update histories if the best move is a quiet one
+        if !best_move.is_capture(board) {
+            let color = board.turn_color();
+            // Increase stats for the best move and store it as a killer
+            self.history.add_bonus(best_move, color, depth);
+            let i = depth as usize;
+            if *best_move != self.killers[i][0] {
+                self.killers[i][1] = self.killers[i][0];
+                self.killers[i][0] = *best_move;
+            }
+
+            // Decrease history stats for the other quiet moves
+            quiet_moves.iter().for_each(|mv| {
+                self.history.sub_bonus(mv, color);
+            });
+        }
     }
 }
 
