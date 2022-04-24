@@ -18,6 +18,9 @@ fn run() -> _ {
     let port = args().nth(1).map(|s| s.parse().unwrap_or(DEFAULT_PORT)).unwrap_or(DEFAULT_PORT);
     let config = Config {port, ..Config::default()};
 
+    // Init stuff in the engine
+    shakmat_engine::init_evaluation();
+
     rocket::build()
         .configure(config)
         .mount("/", handlers::get_routes())

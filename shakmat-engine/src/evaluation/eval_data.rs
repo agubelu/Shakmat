@@ -6,7 +6,7 @@ use super::Evaluation;
 pub struct EvalData<'a> {
     pub board: &'a Board,
     pub game_phase: i16,
-    pub score_opening: i16,
+    pub score_midgame: i16,
     pub score_endgame: i16,
     pub white_pieces: &'a Pieces,
     pub black_pieces: &'a Pieces,
@@ -34,7 +34,7 @@ impl<'a> EvalData<'a> {
 
         let mut res = Self {bp, br, bn, bb, bq, wp, wr, wn, wb, wq,
              board, white_pieces, black_pieces,
-             game_phase: 0, score_endgame: 0, score_opening: 0};
+             game_phase: 0, score_endgame: 0, score_midgame: 0};
         res.update_game_phase();
         res
     }
@@ -42,7 +42,7 @@ impl<'a> EvalData<'a> {
     pub fn compute_score(&self) -> Evaluation {
         // The values are temporarily promoted to i32 to avoid overflowing when
         // multiplying by the game phase
-        let eval = ((self.score_opening as i32 * (256 - self.game_phase as i32)) + (self.score_endgame as i32 * self.game_phase as i32)) / 256;
+        let eval = ((self.score_midgame as i32 * (256 - self.game_phase as i32)) + (self.score_endgame as i32 * self.game_phase as i32)) / 256;
         Evaluation::new(eval as i16 * self.board.turn_color().sign())
     }
 

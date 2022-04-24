@@ -7,8 +7,8 @@ use crate::search::SearchOptions;
 const OFFSET: u64 = 10_000;
 pub struct TimeManager {
     unlimited: bool, // Whether we have unlimited time to make a move
-    time_for_this_move: u64, // Amount of us that we have calculated that we 
-                             // can spend on this move
+    time_for_this_move: u64, // Amount of us that we have calculated
+                             // we can spend on this move
     total_remaining: u64, // Total time remaining in micros
     start: Instant, // Instant in which the time started counting
     finished: bool, // Whether the allocated time has passed

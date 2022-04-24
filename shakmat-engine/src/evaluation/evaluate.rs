@@ -1,7 +1,7 @@
 use std::fmt::{Formatter, Display};
 use std::ops::{Neg, Add, Sub};
 use shakmat_core::{Board, Color::{*, self}, BitBoard, PieceType::{*, self}};
-use super::{piece_tables, EvalData};
+use super::{piece_tables, EvalData, masks, eval_data};
 
 // Represents the evaluation of a position. The goal of using a struct instead of an i16
 // directly is to implement Display, to be able to show the score in a much nicer way
@@ -17,7 +17,7 @@ const CONTEMPT: i16 = 0;
 
 // Bonuses and penalties, measured in centipawns
 // Values that are pairs represent the scores for the middlegame and endgame phases
-type ScorePair = (i16, i16);
+pub type ScorePair = (i16, i16);
 
 const PAWN_BASE_VALUE: i16 = 100;
 const BISHOP_BASE_VALUE: i16 = 300;
@@ -35,8 +35,10 @@ const PASSED_PAWN_BONUS_MG: [i16; 8] = [0, 10, 5,  1, 15,  50, 100, 0];
 const PASSED_PAWN_BONUS_EG: [i16; 8] = [0,  1, 5, 25, 50, 100, 150, 0];
 
 // Evaluate how favorable a position is for the current side to move
-// A positive score favors the current side, while a negative one
-// favors the rival.
+// We always calculate it so that positive scores favor white, while
+// negative scores favor black.
+// eval_data.compute_score() adapts the final sign to make it from
+// the point of view of the current player.
 pub fn evaluate_position(board: &Board) -> Evaluation {
     let mut eval_data = EvalData::new(board);
 
@@ -68,7 +70,7 @@ fn calc_piece_score(eval_data: &mut EvalData) {
     let (wk_mg, wk_eg) = eval_bitboard(eval_data.white_pieces.king, King, White, eval_data);
     let (bk_mg, bk_eg) = eval_bitboard(eval_data.black_pieces.king, King, Black, eval_data);
 
-    eval_data.score_opening += wp_mg + wb_mg + wn_mg + wr_mg + wq_mg + wk_mg - bp_mg - bb_mg - bn_mg - br_mg - bq_mg - bk_mg;
+    eval_data.score_midgame += wp_mg + wb_mg + wn_mg + wr_mg + wq_mg + wk_mg - bp_mg - bb_mg - bn_mg - br_mg - bq_mg - bk_mg;
     eval_data.score_endgame += wp_eg + wb_eg + wn_eg + wr_eg + wq_eg + wk_eg - bp_eg - bb_eg - bn_eg - br_eg - bq_eg - bk_eg;
 }
 
@@ -77,7 +79,7 @@ fn calc_piece_score(eval_data: &mut EvalData) {
 fn calc_control_score(eval_data: &mut EvalData) {
     let control_white = eval_data.board.get_attack_bitboard(White).count() as i16;
     let control_black = eval_data.board.get_attack_bitboard(Black).count() as i16;
-    eval_data.score_opening += control_white - control_black;
+    eval_data.score_midgame += control_white - control_black;
     eval_data.score_endgame += 2 * (control_white - control_black);
 }
 
@@ -87,32 +89,19 @@ fn calc_positional_score(eval_data: &mut EvalData) {
     let wp = eval_data.white_pieces;
     let bp = eval_data.black_pieces;
 
-    let score_opening = pos_score(wp.pawns, &piece_tables::WHITE_PAWN_OPENING)
-        - pos_score(bp.pawns, &piece_tables::BLACK_PAWN_OPENING)
-        + pos_score(wp.rooks, &piece_tables::WHITE_ROOK_OPENING)
-        - pos_score(bp.rooks, &piece_tables::BLACK_ROOK_OPENING)
-        + pos_score(wp.knights, &piece_tables::WHITE_KNIGHT_OPENING)
-        - pos_score(bp.knights, &piece_tables::BLACK_KNIGHT_OPENING)
-        + pos_score(wp.bishops, &piece_tables::WHITE_BISHOP_OPENING)
-        - pos_score(bp.bishops, &piece_tables::BLACK_BISHOP_OPENING)
-        + pos_score(wp.queens, &piece_tables::WHITE_QUEEN_OPENING)
-        - pos_score(bp.queens, &piece_tables::BLACK_QUEEN_OPENING)
-        + pos_score(wp.king, &piece_tables::WHITE_KING_OPENING)
-        - pos_score(bp.king, &piece_tables::BLACK_KING_OPENING);
-    
-    let score_endgame = pos_score(wp.pawns, &piece_tables::WHITE_PAWN_ENDGAME)
-        - pos_score(bp.pawns, &piece_tables::BLACK_PAWN_ENDGAME)
-        + pos_score(wp.knights, &piece_tables::WHITE_KNIGHT_ENDGAME)
-        - pos_score(bp.knights, &piece_tables::BLACK_KNIGHT_ENDGAME)
-        + pos_score(wp.bishops, &piece_tables::WHITE_BISHOP_ENDGAME)
-        - pos_score(bp.bishops, &piece_tables::BLACK_BISHOP_ENDGAME)
-        + pos_score(wp.queens, &piece_tables::WHITE_QUEEN_ENDGAME)
-        - pos_score(bp.queens, &piece_tables::BLACK_QUEEN_ENDGAME)
-        + pos_score(wp.king, &piece_tables::WHITE_KING_ENDGAME)
-        - pos_score(bp.king, &piece_tables::BLACK_KING_ENDGAME);  
+    add_pos_scores(eval_data, wp.pawns, &piece_tables::WHITE_PAWNS);
+    add_pos_scores(eval_data, wp.rooks, &piece_tables::WHITE_BISHOPS);
+    add_pos_scores(eval_data, wp.knights, &piece_tables::WHITE_KNIGHTS);
+    add_pos_scores(eval_data, wp.bishops, &piece_tables::WHITE_BISHOPS);
+    add_pos_scores(eval_data, wp.queens, &piece_tables::WHITE_QUEENS);
+    add_pos_scores(eval_data, wp.king, &piece_tables::WHITE_KING);
 
-    eval_data.score_opening += score_opening;
-    eval_data.score_endgame += score_endgame;
+    sub_pos_scores(eval_data, bp.pawns, &piece_tables::BLACK_PAWNS);
+    sub_pos_scores(eval_data, bp.rooks, &piece_tables::BLACK_BISHOPS);
+    sub_pos_scores(eval_data, bp.knights, &piece_tables::BLACK_KNIGHTS);
+    sub_pos_scores(eval_data, bp.bishops, &piece_tables::BLACK_BISHOPS);
+    sub_pos_scores(eval_data, bp.queens, &piece_tables::BLACK_QUEENS);
+    sub_pos_scores(eval_data, bp.king, &piece_tables::BLACK_KING);
 }
 
 fn calc_bishop_pair_bonus(eval_data: &mut EvalData) {
@@ -122,18 +111,14 @@ fn calc_bishop_pair_bonus(eval_data: &mut EvalData) {
     let white_pair = (eval_data.wb >= 2) as i16;
     let black_pair = (eval_data.bb >= 2) as i16;
     
-    eval_data.score_opening += bonus_early * white_pair - bonus_early * black_pair;
+    eval_data.score_midgame += bonus_early * white_pair - bonus_early * black_pair;
     eval_data.score_endgame += bonus_late * white_pair - bonus_late * black_pair;
 }
 
 fn calc_tempo(eval_data: &mut EvalData) {
     // Small bonus for having the right to move, only
     // in the early game
-    eval_data.score_opening += TEMPO_BONUS;
-}
-
-fn pos_score(bb: BitBoard, pos_table: &[i16]) -> i16 {
-    bb.piece_indices().map(|i| pos_table[i as usize]).sum()
+    eval_data.score_midgame += TEMPO_BONUS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -154,6 +139,26 @@ fn eval_bitboard(bb: BitBoard, piece_type: PieceType, color: Color, eval_data: &
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// Aux functions to add/substract positional scores
+fn add_pos_scores(eval_data: &mut EvalData, bb: BitBoard, table: &[ScorePair]) {
+    bb.piece_indices().for_each(|pos| {
+        // All positions are <64, so it's safe to skip bounds checking
+        let (mg, eg) = unsafe { table.get_unchecked(pos as usize) };
+        eval_data.score_midgame += mg;
+        eval_data.score_endgame += eg;
+    });
+}
+
+fn sub_pos_scores(eval_data: &mut EvalData, bb: BitBoard, table: &[ScorePair]) {
+    bb.piece_indices().for_each(|pos| {
+        // All positions are <64, so it's safe to skip bounds checking
+        let (mg, eg) = unsafe { table.get_unchecked(pos as usize) };
+        eval_data.score_midgame -= mg;
+        eval_data.score_endgame -= eg;
+    });
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// Specialized functions for each piece type
 fn eval_pawn(pos: u8, _: BitBoard, color: Color, eval_data: &EvalData) -> ScorePair {
     let mut mg = PAWN_BASE_VALUE;
@@ -161,11 +166,11 @@ fn eval_pawn(pos: u8, _: BitBoard, color: Color, eval_data: &EvalData) -> ScoreP
 
     // Check if this is a passed pawn, and add bonuses acordingly
     let (enemy_pawns, passed_mask, rel_rank) = match color {
-        White => (eval_data.black_pieces.pawns, &piece_tables::WHITE_PASSED_MASK, pos / 8),
-        Black => (eval_data.white_pieces.pawns, &piece_tables::BLACK_PASSED_MASK, 7 - (pos / 8)),
+        White => (eval_data.black_pieces.pawns, masks::white_passed_pawn(pos), pos / 8),
+        Black => (eval_data.white_pieces.pawns, masks::black_passed_pawn(pos), 7 - (pos / 8)),
     };
 
-    if (enemy_pawns & passed_mask[pos as usize]).is_empty() {
+    if (enemy_pawns & passed_mask).is_empty() {
         // This pawn is a passer, assign a bonus depending on its relative rank
         mg += PASSED_PAWN_BONUS_MG[rel_rank as usize];
         eg += PASSED_PAWN_BONUS_EG[rel_rank as usize];
@@ -186,7 +191,7 @@ fn eval_rook(pos: u8, bb: BitBoard, color: Color, eval_data: &EvalData) -> Score
     let mut mg = ROOK_BASE_VALUE;
     let mut eg = ROOK_BASE_VALUE;
 
-    let file = piece_tables::FILES[pos as usize % 8];
+    let file = masks::file(pos);
     let (friendly_pawns, enemy_pawns) = match color {
         White => (eval_data.white_pieces.pawns, eval_data.black_pieces.pawns),
         Black => (eval_data.black_pieces.pawns, eval_data.white_pieces.pawns),
