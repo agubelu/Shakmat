@@ -196,7 +196,13 @@ impl Board {
     // endgame, which may misevaluate zugzwang positions.
     pub fn only_pawns_or_endgame(&self) -> bool {
         let piece_count = self.all_pieces.count();
-        piece_count <= 7 || piece_count == self.black_pieces.pawns.count() + self.white_pieces.pawns.count() + 2
+        piece_count <= 7 || self.only_pawns()
+    }
+
+    // Returns whether the current position only has pawns and kings
+    pub fn only_pawns(&self) -> bool {
+        let piece_count = self.all_pieces.count();
+        piece_count == self.black_pieces.pawns.count() + self.white_pieces.pawns.count() + 2
     }
 
     pub fn ep_square(&self) -> BitBoard {

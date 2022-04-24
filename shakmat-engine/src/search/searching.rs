@@ -28,16 +28,21 @@ const ASP_WINDOW: i16 = 30;
 const PANIC_DROP: i16 = 30;
 
 // Number of legal moves after which to start applying late move reductions
-const LMR_MOVES: usize = 4;
+const LMR_MOVES: usize = 2;
 
 // Score margins for futility pruning
 const FUTILIY_MARGINS: [i16; 6] = [0, 100, 160, 220, 280, 340];
 
 // Typedef for the killer moves table
-pub type Killers = [[Move; MAX_KILLERS]; LIMIT_DEPTH + 1];
+pub type Killers = [[Move; MAX_KILLERS]; LIMIT_DEPTH + 2];
 
 // Typedef for the pair (alpha, beta) of score bounds
 pub type Bounds = (Evaluation, Evaluation);
+
+// Calculates the number of quiet moves to explore for a certain depth
+const fn max_movecount(depth: u8) -> usize {
+    3 + (depth as usize * depth as usize)
+}
 
 // The Search struct contains all necessary parameters for the search and stores
 // relevant information between iterations. All search-related functions
@@ -73,7 +78,7 @@ impl Search {
             timer: TimeManager::new(&config),
             max_depth: min(config.max_depth.unwrap_or(LIMIT_DEPTH as u8), LIMIT_DEPTH as u8),
             tt: TTable::new(TRASPOSITION_TABLE_SIZE),
-            killers: [[Move::empty(); MAX_KILLERS]; LIMIT_DEPTH + 1],
+            killers: [[Move::empty(); MAX_KILLERS]; LIMIT_DEPTH + 2],
             node_count: 0,
             past_positions: past_positions.to_vec(),
             history: HistoryTable::new(),
@@ -318,16 +323,22 @@ impl Search {
                 continue;
             }
 
-            // Late move reduction: Moves after the first one are less likely
-            // to be interesting, so we search them with a reduced depth and
-            // window. However, the following moves are not reduced: checks in general,
-            // captures, promotions, PV nodes, shallow depth, killers and pawn moves
-            // Also, we never reduce at the root
-            let gives_check = next_board.is_check(next_board.turn_color());
+            // Some information about this move
             let is_capture = mv.is_capture(board);
             let cap_or_prom = is_capture || matches!(mv, Move::PawnPromotion{..});
+            let gives_check = next_board.is_check(next_board.turn_color());
             let is_pawn_move = mv.piece_moving(board) == Pawn;
             let is_tactical = is_check || gives_check || cap_or_prom || is_pawn_move || self.is_killer(&mv, current_depth);
+
+            // Late move pruning: in non-PV nodes, skip late quiet moves since they are less
+            // likely to be interesting. The closer we are to the horizon, the more
+            // moves we prune. However, we only do that when there are non-pawn pieces on
+            // the board, not in the root node, and we're not under a checkmate threat
+            // Not working very well ATM
+            // if !is_pv && !is_tactical && current_depth != 0 && !board.only_pawns()
+            //    && !best_score.is_negative_mate() && analyzed_moves >= max_movecount(depth_remaining) {
+            //     continue;
+            // }
 
             // Futility pruning, part 2: if we decided earlier that we can
             // use this pruning, and the current move is not a tactical one,
@@ -336,9 +347,14 @@ impl Search {
                 continue;
             }
 
-            // Update the vec of past positions with the current zobrist key before the recursive call
+            // Update the vec of past positions with the current zobrist key before the recursive calls
             self.past_positions.push(zobrist);
 
+            // Late move reduction: Moves after the first one are less likely
+            // to be interesting, so we search them with a reduced depth and
+            // window. However, the following moves are not reduced: checks in general,
+            // captures, promotions, PV nodes, shallow depth, killers and pawn moves
+            // Also, we never reduce at the root
             let mut red = 0;
             if !is_pv && !is_tactical && depth_remaining >= 3 && analyzed_moves >= LMR_MOVES && current_depth != 0 {
                 // The base reduction starts at 2 because it's one more than the
@@ -596,16 +612,4 @@ pub fn is_draw_by_repetition(board: &Board, cur_depth: u8, history: &[u64]) -> b
     };
         
     false
-}
-
-fn store_possible_killer(depth: u8, board: &Board, mv: Move, killers: &mut Killers) {
-    // The move caused a beta cutoff. If it's a quiet move (i.e. it doesn't capture anything),
-    // then it is a killer move and it must be stored if it isn't there already
-    if !mv.is_capture(board) {
-        let i = depth as usize;
-        if mv != killers[i][0] {
-            killers[i][1] = killers[i][0];
-            killers[i][0] = mv;
-        }
-    }
 }

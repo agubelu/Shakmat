@@ -1,7 +1,7 @@
 use std::fmt::{Formatter, Display};
 use std::ops::{Neg, Add, Sub};
 use shakmat_core::{Board, Color::{*, self}, BitBoard, PieceType::{*, self}};
-use super::{tables, EvalData};
+use super::{piece_tables, EvalData};
 
 // Represents the evaluation of a position. The goal of using a struct instead of an i16
 // directly is to implement Display, to be able to show the score in a much nicer way
@@ -87,29 +87,29 @@ fn calc_positional_score(eval_data: &mut EvalData) {
     let wp = eval_data.white_pieces;
     let bp = eval_data.black_pieces;
 
-    let score_opening = pos_score(wp.pawns, &tables::WHITE_PAWN_OPENING)
-        - pos_score(bp.pawns, &tables::BLACK_PAWN_OPENING)
-        + pos_score(wp.rooks, &tables::WHITE_ROOK_OPENING)
-        - pos_score(bp.rooks, &tables::BLACK_ROOK_OPENING)
-        + pos_score(wp.knights, &tables::WHITE_KNIGHT_OPENING)
-        - pos_score(bp.knights, &tables::BLACK_KNIGHT_OPENING)
-        + pos_score(wp.bishops, &tables::WHITE_BISHOP_OPENING)
-        - pos_score(bp.bishops, &tables::BLACK_BISHOP_OPENING)
-        + pos_score(wp.queens, &tables::WHITE_QUEEN_OPENING)
-        - pos_score(bp.queens, &tables::BLACK_QUEEN_OPENING)
-        + pos_score(wp.king, &tables::WHITE_KING_OPENING)
-        - pos_score(bp.king, &tables::BLACK_KING_OPENING);
+    let score_opening = pos_score(wp.pawns, &piece_tables::WHITE_PAWN_OPENING)
+        - pos_score(bp.pawns, &piece_tables::BLACK_PAWN_OPENING)
+        + pos_score(wp.rooks, &piece_tables::WHITE_ROOK_OPENING)
+        - pos_score(bp.rooks, &piece_tables::BLACK_ROOK_OPENING)
+        + pos_score(wp.knights, &piece_tables::WHITE_KNIGHT_OPENING)
+        - pos_score(bp.knights, &piece_tables::BLACK_KNIGHT_OPENING)
+        + pos_score(wp.bishops, &piece_tables::WHITE_BISHOP_OPENING)
+        - pos_score(bp.bishops, &piece_tables::BLACK_BISHOP_OPENING)
+        + pos_score(wp.queens, &piece_tables::WHITE_QUEEN_OPENING)
+        - pos_score(bp.queens, &piece_tables::BLACK_QUEEN_OPENING)
+        + pos_score(wp.king, &piece_tables::WHITE_KING_OPENING)
+        - pos_score(bp.king, &piece_tables::BLACK_KING_OPENING);
     
-    let score_endgame = pos_score(wp.pawns, &tables::WHITE_PAWN_ENDGAME)
-        - pos_score(bp.pawns, &tables::BLACK_PAWN_ENDGAME)
-        + pos_score(wp.knights, &tables::WHITE_KNIGHT_ENDGAME)
-        - pos_score(bp.knights, &tables::BLACK_KNIGHT_ENDGAME)
-        + pos_score(wp.bishops, &tables::WHITE_BISHOP_ENDGAME)
-        - pos_score(bp.bishops, &tables::BLACK_BISHOP_ENDGAME)
-        + pos_score(wp.queens, &tables::WHITE_QUEEN_ENDGAME)
-        - pos_score(bp.queens, &tables::BLACK_QUEEN_ENDGAME)
-        + pos_score(wp.king, &tables::WHITE_KING_ENDGAME)
-        - pos_score(bp.king, &tables::BLACK_KING_ENDGAME);  
+    let score_endgame = pos_score(wp.pawns, &piece_tables::WHITE_PAWN_ENDGAME)
+        - pos_score(bp.pawns, &piece_tables::BLACK_PAWN_ENDGAME)
+        + pos_score(wp.knights, &piece_tables::WHITE_KNIGHT_ENDGAME)
+        - pos_score(bp.knights, &piece_tables::BLACK_KNIGHT_ENDGAME)
+        + pos_score(wp.bishops, &piece_tables::WHITE_BISHOP_ENDGAME)
+        - pos_score(bp.bishops, &piece_tables::BLACK_BISHOP_ENDGAME)
+        + pos_score(wp.queens, &piece_tables::WHITE_QUEEN_ENDGAME)
+        - pos_score(bp.queens, &piece_tables::BLACK_QUEEN_ENDGAME)
+        + pos_score(wp.king, &piece_tables::WHITE_KING_ENDGAME)
+        - pos_score(bp.king, &piece_tables::BLACK_KING_ENDGAME);  
 
     eval_data.score_opening += score_opening;
     eval_data.score_endgame += score_endgame;
@@ -161,8 +161,8 @@ fn eval_pawn(pos: u8, _: BitBoard, color: Color, eval_data: &EvalData) -> ScoreP
 
     // Check if this is a passed pawn, and add bonuses acordingly
     let (enemy_pawns, passed_mask, rel_rank) = match color {
-        White => (eval_data.black_pieces.pawns, &tables::WHITE_PASSED_MASK, pos / 8),
-        Black => (eval_data.white_pieces.pawns, &tables::BLACK_PASSED_MASK, 7 - (pos / 8)),
+        White => (eval_data.black_pieces.pawns, &piece_tables::WHITE_PASSED_MASK, pos / 8),
+        Black => (eval_data.white_pieces.pawns, &piece_tables::BLACK_PASSED_MASK, 7 - (pos / 8)),
     };
 
     if (enemy_pawns & passed_mask[pos as usize]).is_empty() {
@@ -186,7 +186,7 @@ fn eval_rook(pos: u8, bb: BitBoard, color: Color, eval_data: &EvalData) -> Score
     let mut mg = ROOK_BASE_VALUE;
     let mut eg = ROOK_BASE_VALUE;
 
-    let file = tables::FILES[pos as usize % 8];
+    let file = piece_tables::FILES[pos as usize % 8];
     let (friendly_pawns, enemy_pawns) = match color {
         White => (eval_data.white_pieces.pawns, eval_data.black_pieces.pawns),
         Black => (eval_data.black_pieces.pawns, eval_data.white_pieces.pawns),
