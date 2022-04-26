@@ -14,7 +14,7 @@ pub static ZOBRIST_VALUES: [u64; 793] = include!("rng_values.in");
 
 
 pub fn get_key_for_piece(piece: PieceType, color: Color, square: u8) -> u64 {
-    ZOBRIST_VALUES[64 * (piece.to_index() + color.to_index()) + square as usize]
+    ZOBRIST_VALUES[64 * (piece.to_zobrist_index() + color.to_index()) + square as usize]
 }
 
 pub fn get_key_castling(cr: &CastlingRights) -> u64 {

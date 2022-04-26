@@ -1,5 +1,5 @@
-use shakmat_core::{Board, Pieces, Color::*};
-use super::Evaluation;
+use shakmat_core::{Board, Pieces, BitBoard, Color::{*, self}, PieceType::{*, self}, move_gen};
+use super::{Evaluation, masks};
 
 // Auxiliary struct to store values that are used in different parts
 // of the evaluation, to avoid calculating them multiple times
@@ -10,7 +10,14 @@ pub struct EvalData<'a> {
     pub score_endgame: i16,
     pub white_pieces: &'a Pieces,
     pub black_pieces: &'a Pieces,
+
+    // Info about king position and attackers
+    pub king_rings: [BitBoard; 2],
+    pub attackers_count: [i16; 2],
+    pub attacks_weight: [i16; 2],
+
     // Count of pieces of a certain type for every side
+    // Do I really need these in the future...?
     pub wp: i16, pub wr: i16, pub wb: i16, pub wn: i16, pub wq: i16,
     pub bp: i16, pub br: i16, pub bb: i16, pub bn: i16, pub bq: i16,
 }
@@ -32,8 +39,16 @@ impl<'a> EvalData<'a> {
         let wb = white_pieces.bishops.count() as i16;
         let wq = white_pieces.queens.count() as i16;
 
+        let attackers_count = [0; 2];
+        let attacks_weight = [0; 2];
+        let black_king_pos = board.get_pieces(Black).king.first_piece_index();
+        let white_king_pos = board.get_pieces(White).king.first_piece_index();
+        let king_rings = [masks::black_king_ring(black_king_pos),
+                          masks::white_king_ring(white_king_pos)]; // Always black, white
+
         let mut res = Self {bp, br, bn, bb, bq, wp, wr, wn, wb, wq,
              board, white_pieces, black_pieces,
+             attackers_count, attacks_weight, king_rings,
              game_phase: 0, score_endgame: 0, score_midgame: 0};
         res.update_game_phase();
         res

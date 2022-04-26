@@ -8,11 +8,11 @@ pub enum Color {
 }
 
 impl Color {
-    // Used for zobrist keys
+    // Used for zobrist keys and array indexing
     pub const fn to_index(&self) -> usize {
         match self {
-            Self::White => 1,
             Self::Black => 0,
+            Self::White => 1,
         }
     }
 

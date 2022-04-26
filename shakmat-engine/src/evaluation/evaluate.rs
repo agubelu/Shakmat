@@ -1,7 +1,10 @@
 use std::fmt::{Formatter, Display};
 use std::ops::{Neg, Add, Sub};
-use shakmat_core::{Board, Color::{*, self}, BitBoard, PieceType::{*, self}};
-use super::{piece_tables, EvalData, masks, eval_data};
+use shakmat_core::{Board, Color::{*, self}, BitBoard, PieceType::{*, self}, move_gen};
+use super::{piece_tables, EvalData, masks};
+
+// TODO: Note to self: in the future, refactor all of this using const enum generics
+// for the evaluation functions, to reduce duplicities
 
 // Represents the evaluation of a position. The goal of using a struct instead of an i16
 // directly is to implement Display, to be able to show the score in a much nicer way
@@ -34,6 +37,11 @@ const PASSED_PAWN_BONUS: [ScorePair; 7] = [
     (0, 0), (10, 1), (5, 5), (1, 25), (15, 50), (50, 100), (100, 150)
 ];
 
+const KNIGHT_ATTACK_WEIGHT: i16 = 15;
+const BISHOP_ATTACK_WEIGHT: i16 = 45;
+const ROOK_ATTACK_WEIGHT: i16 = 50;
+const QUEEN_ATTACK_WEIGHT: i16 = 75;
+
 // Evaluate how favorable a position is for the current side to move
 // We always calculate it so that positive scores favor white, while
 // negative scores favor black.
@@ -51,6 +59,8 @@ pub fn evaluate_position(board: &Board) -> Evaluation {
 }
 
 // Computes the total piece score of a color, using the specialized functions
+// It's very important that we evaluate the king last, since the king safety
+// evaluation depends on data that will be saved in the eval_data by other pieces
 fn calc_piece_score(eval_data: &mut EvalData) {  
     let (wp_mg, wp_eg) = eval_bitboard(eval_data.white_pieces.pawns, Pawn, White, eval_data);
     let (bp_mg, bp_eg) = eval_bitboard(eval_data.black_pieces.pawns, Pawn, Black, eval_data);
@@ -67,6 +77,7 @@ fn calc_piece_score(eval_data: &mut EvalData) {
     let (wq_mg, wq_eg) = eval_bitboard(eval_data.white_pieces.queens, Queen, White, eval_data);
     let (bq_mg, bq_eg) = eval_bitboard(eval_data.black_pieces.queens, Queen, Black, eval_data);
 
+    // Always last!
     let (wk_mg, wk_eg) = eval_bitboard(eval_data.white_pieces.king, King, White, eval_data);
     let (bk_mg, bk_eg) = eval_bitboard(eval_data.black_pieces.king, King, Black, eval_data);
 
@@ -122,8 +133,128 @@ fn calc_tempo(eval_data: &mut EvalData) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// Specialized functions for each piece type
+fn eval_pawn(pos: u8, _: BitBoard, color: Color, eval_data: &mut EvalData) -> ScorePair {
+    let mut mg = PAWN_BASE_VALUE;
+    let mut eg = PAWN_BASE_VALUE;
+    let enemy = (!color).to_index();
+
+    // Check if this pawn attacks the enemy king ring. Pawns have no attack weight
+    // but still count towards the attacker count
+    let attack_bb = move_gen::pawn_attacks(pos as usize, color);
+    if (attack_bb & eval_data.king_rings[enemy]).is_not_empty() {
+        eval_data.attackers_count[enemy] += 1;
+    }
+
+    // Check if this is a passed pawn, and add bonuses acordingly
+    let (enemy_pawns, passed_mask, rel_rank) = match color {
+        White => (eval_data.black_pieces.pawns, masks::white_passed_pawn(pos), pos / 8),
+        Black => (eval_data.white_pieces.pawns, masks::black_passed_pawn(pos), 7 - (pos / 8)),
+    };
+
+    if (enemy_pawns & passed_mask).is_empty() {
+        // This pawn is a passer, assign a bonus depending on its relative rank
+        let (mg_bonus, eg_bonus) = PASSED_PAWN_BONUS[rel_rank as usize];
+        mg += mg_bonus;
+        eg += eg_bonus;
+    }
+
+    (mg, eg)
+}
+
+fn eval_bishop(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> ScorePair {
+    // Check if this bishop attacks the enemy king ring.
+    let attack_bb = move_gen::bishop_moves(pos as usize, eval_data.board.get_all_bitboard());
+    let enemy = (!color).to_index();
+    if (attack_bb & eval_data.king_rings[enemy]).is_not_empty() {
+        eval_data.attackers_count[enemy] += 1;
+        eval_data.attacks_weight[enemy] += BISHOP_ATTACK_WEIGHT;
+    }
+
+    (BISHOP_BASE_VALUE, BISHOP_BASE_VALUE)
+}
+
+fn eval_knight(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> ScorePair {
+    // Check if this knight attacks the enemy king ring.
+    let attack_bb = move_gen::knight_moves(pos as usize);
+    let enemy = (!color).to_index();
+    if (attack_bb & eval_data.king_rings[enemy]).is_not_empty() {
+        eval_data.attackers_count[enemy] += 1;
+        eval_data.attacks_weight[enemy] += KNIGHT_ATTACK_WEIGHT;
+    }
+
+    (KNIGHT_BASE_VALUE, KNIGHT_BASE_VALUE)
+}
+
+fn eval_rook(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> ScorePair {
+    let mut mg = ROOK_BASE_VALUE;
+    let mut eg = ROOK_BASE_VALUE;
+
+    // Check if this rook attacks the enemy king ring.
+    let attack_bb = move_gen::rook_moves(pos as usize, eval_data.board.get_all_bitboard());
+    let enemy = (!color).to_index();
+    if (attack_bb & eval_data.king_rings[enemy]).is_not_empty() {
+        eval_data.attackers_count[enemy] += 1;
+        eval_data.attacks_weight[enemy] += ROOK_ATTACK_WEIGHT;
+    }
+
+    let file = masks::file(pos);
+    let (friendly_pawns, enemy_pawns) = match color {
+        White => (eval_data.white_pieces.pawns, eval_data.black_pieces.pawns),
+        Black => (eval_data.black_pieces.pawns, eval_data.white_pieces.pawns),
+    };
+
+    // Check if the rook is in a closed, semi-open or open file
+    if (file & friendly_pawns).is_not_empty() {
+        // Friendly pawns on this file, we consider it closed and substract a penalty
+        mg += ROOK_CLOSED_FILE_PENALTY.0;
+        eg += ROOK_CLOSED_FILE_PENALTY.1;
+    } else if (file & enemy_pawns).is_not_empty() {
+        // Only enemy pawns, we consider it semi-open and add a bonus
+        mg += ROOK_SEMIOPEN_FILE_BONUS.0;
+        eg += ROOK_SEMIOPEN_FILE_BONUS.1;
+    } else {
+        // No pawns, we consider it open
+        mg += ROOK_OPEN_FILE_BONUS.0;
+        eg += ROOK_OPEN_FILE_BONUS.1;
+    }
+
+    (mg, eg)
+}
+
+fn eval_queen(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> ScorePair {
+    // Check if this queen attacks the enemy king ring.
+    let attack_bb = move_gen::queen_moves(pos as usize, eval_data.board.get_all_bitboard());
+    let enemy = (!color).to_index();
+    if (attack_bb & eval_data.king_rings[enemy]).is_not_empty() {
+        eval_data.attackers_count[enemy] += 1;
+        eval_data.attacks_weight[enemy] += QUEEN_ATTACK_WEIGHT;
+    }
+
+    (QUEEN_BASE_VALUE, QUEEN_BASE_VALUE)
+}
+
+// There are approximately 99999 ways to evaluate a king's safety, so here we
+// follow the path of our lord and savior Stockfish and compute a safety value
+// by multiplying the number of attackers with the total weight of their attacks
+fn eval_king(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> ScorePair {
+    // Calculate the threat score
+    let us = color.to_index();
+    let threat = eval_data.attackers_count[us] * eval_data.attacks_weight[us];
+
+    let (mut mg, mut eg) = (0, 0);
+
+    if threat > 100 {
+        mg -= threat * threat / 4096;
+        eg -= threat / 16;
+    }
+
+    (mg, eg)
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// Aux function to evaluate a whole bitboard of pieces of a given type
-fn eval_bitboard(bb: BitBoard, piece_type: PieceType, color: Color, eval_data: &EvalData) -> ScorePair {
+fn eval_bitboard(bb: BitBoard, piece_type: PieceType, color: Color, eval_data: &mut EvalData) -> ScorePair {
     let eval_func = match piece_type {
         Pawn => eval_pawn,
         Knight => eval_knight,
@@ -156,72 +287,6 @@ fn sub_pos_scores(eval_data: &mut EvalData, bb: BitBoard, table: &[ScorePair]) {
         eval_data.score_midgame -= mg;
         eval_data.score_endgame -= eg;
     });
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// Specialized functions for each piece type
-fn eval_pawn(pos: u8, _: BitBoard, color: Color, eval_data: &EvalData) -> ScorePair {
-    let mut mg = PAWN_BASE_VALUE;
-    let mut eg = PAWN_BASE_VALUE;
-
-    // Check if this is a passed pawn, and add bonuses acordingly
-    let (enemy_pawns, passed_mask, rel_rank) = match color {
-        White => (eval_data.black_pieces.pawns, masks::white_passed_pawn(pos), pos / 8),
-        Black => (eval_data.white_pieces.pawns, masks::black_passed_pawn(pos), 7 - (pos / 8)),
-    };
-
-    if (enemy_pawns & passed_mask).is_empty() {
-        // This pawn is a passer, assign a bonus depending on its relative rank
-        let (mg_bonus, eg_bonus) = PASSED_PAWN_BONUS[rel_rank as usize];
-        mg += mg_bonus;
-        eg += eg_bonus;
-    }
-
-    (mg, eg)
-}
-
-fn eval_bishop(pos: u8, bb: BitBoard, color: Color, eval_data: &EvalData) -> ScorePair {
-    (BISHOP_BASE_VALUE, BISHOP_BASE_VALUE)
-}
-
-fn eval_knight(pos: u8, bb: BitBoard, color: Color, eval_data: &EvalData) -> ScorePair {
-    (KNIGHT_BASE_VALUE, KNIGHT_BASE_VALUE)
-}
-
-fn eval_rook(pos: u8, bb: BitBoard, color: Color, eval_data: &EvalData) -> ScorePair {
-    let mut mg = ROOK_BASE_VALUE;
-    let mut eg = ROOK_BASE_VALUE;
-
-    let file = masks::file(pos);
-    let (friendly_pawns, enemy_pawns) = match color {
-        White => (eval_data.white_pieces.pawns, eval_data.black_pieces.pawns),
-        Black => (eval_data.black_pieces.pawns, eval_data.white_pieces.pawns),
-    };
-
-    // Check if the rook is in a closed, semi-open or open file
-    if (file & friendly_pawns).is_not_empty() {
-        // Friendly pawns on this file, we consider it closed and substract a penalty
-        mg += ROOK_CLOSED_FILE_PENALTY.0;
-        eg += ROOK_CLOSED_FILE_PENALTY.1;
-    } else if (file & enemy_pawns).is_not_empty() {
-        // Only enemy pawns, we consider it semi-open and add a bonus
-        mg += ROOK_SEMIOPEN_FILE_BONUS.0;
-        eg += ROOK_SEMIOPEN_FILE_BONUS.1;
-    } else {
-        // No pawns, we consider it open
-        mg += ROOK_OPEN_FILE_BONUS.0;
-        eg += ROOK_OPEN_FILE_BONUS.1;
-    }
-
-    (mg, eg)
-}
-
-fn eval_queen(pos: u8, bb: BitBoard, color: Color, eval_data: &EvalData) -> ScorePair {
-    (QUEEN_BASE_VALUE, QUEEN_BASE_VALUE)
-}
-
-fn eval_king(pos: u8, bb: BitBoard, color: Color, eval_data: &EvalData) -> ScorePair {
-    (0, 0)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
