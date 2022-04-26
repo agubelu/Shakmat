@@ -40,9 +40,9 @@ pub type Killers = [[Move; MAX_KILLERS]; LIMIT_DEPTH + 2];
 pub type Bounds = (Evaluation, Evaluation);
 
 // Calculates the number of quiet moves to explore for a certain depth
-const fn max_movecount(depth: u8) -> usize {
-    3 + (depth as usize * depth as usize)
-}
+// const fn max_movecount(depth: u8) -> usize {
+//     3 + (depth as usize * depth as usize)
+// }
 
 // The Search struct contains all necessary parameters for the search and stores
 // relevant information between iterations. All search-related functions

@@ -1,4 +1,4 @@
-use super::{masks, piece_tables};
+use super::masks;
 use shakmat_core::Square;
 
 // Initializes several bitboard masks used in the evaluation
@@ -23,10 +23,27 @@ pub fn init_evaluation() {
                 unsafe { masks::RANKS[pos] |= bb };
             }
 
+            // King inner and outer rings: squares which are at most 1 and 2
+            // units apart from the current position
+            let file_diff = (file as isize - other_file as isize).abs();
+            let rank_diff = (rank as isize - other_rank as isize).abs();
+            let same_or_next_file = file_diff <= 1;
+            let same_or_next_rank = rank_diff <= 1;
+            let close_file = file_diff <= 2;
+            let close_rank = rank_diff <= 2;
+
+            if same_or_next_file && same_or_next_rank {
+                unsafe { masks::KING_INNER_RING[pos] |= bb };
+            }
+
+            if close_file && close_rank {
+                unsafe { masks::KING_OUTER_RING[pos] |= bb };
+            }
+
+
             // Passed pawn masks: Add if the rank is in front (white)
             // or behind (black), and the file is the same or one of the
             // sides (maximum diff of 1)
-            let same_or_next_file = (file as isize - other_file as isize).abs() <= 1;
             if same_or_next_file && other_rank > rank {
                 unsafe { masks::WHITE_PASSED_PAWN[pos] |= bb };
             }

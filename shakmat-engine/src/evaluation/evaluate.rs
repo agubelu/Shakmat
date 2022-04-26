@@ -30,9 +30,9 @@ const BISHOP_PAIR_BONUS: ScorePair = (20, 60);
 const ROOK_OPEN_FILE_BONUS: ScorePair = (50, 25);
 const ROOK_SEMIOPEN_FILE_BONUS: ScorePair = (20, 10);
 const ROOK_CLOSED_FILE_PENALTY: ScorePair = (-10, -5);
-
-const PASSED_PAWN_BONUS_MG: [i16; 8] = [0, 10, 5,  1, 15,  50, 100, 0];
-const PASSED_PAWN_BONUS_EG: [i16; 8] = [0,  1, 5, 25, 50, 100, 150, 0];
+const PASSED_PAWN_BONUS: [ScorePair; 7] = [
+    (0, 0), (10, 1), (5, 5), (1, 25), (15, 50), (50, 100), (100, 150)
+];
 
 // Evaluate how favorable a position is for the current side to move
 // We always calculate it so that positive scores favor white, while
@@ -90,14 +90,14 @@ fn calc_positional_score(eval_data: &mut EvalData) {
     let bp = eval_data.black_pieces;
 
     add_pos_scores(eval_data, wp.pawns, &piece_tables::WHITE_PAWNS);
-    add_pos_scores(eval_data, wp.rooks, &piece_tables::WHITE_BISHOPS);
+    add_pos_scores(eval_data, wp.rooks, &piece_tables::WHITE_ROOKS);
     add_pos_scores(eval_data, wp.knights, &piece_tables::WHITE_KNIGHTS);
     add_pos_scores(eval_data, wp.bishops, &piece_tables::WHITE_BISHOPS);
     add_pos_scores(eval_data, wp.queens, &piece_tables::WHITE_QUEENS);
     add_pos_scores(eval_data, wp.king, &piece_tables::WHITE_KING);
 
     sub_pos_scores(eval_data, bp.pawns, &piece_tables::BLACK_PAWNS);
-    sub_pos_scores(eval_data, bp.rooks, &piece_tables::BLACK_BISHOPS);
+    sub_pos_scores(eval_data, bp.rooks, &piece_tables::BLACK_ROOKS);
     sub_pos_scores(eval_data, bp.knights, &piece_tables::BLACK_KNIGHTS);
     sub_pos_scores(eval_data, bp.bishops, &piece_tables::BLACK_BISHOPS);
     sub_pos_scores(eval_data, bp.queens, &piece_tables::BLACK_QUEENS);
@@ -172,8 +172,9 @@ fn eval_pawn(pos: u8, _: BitBoard, color: Color, eval_data: &EvalData) -> ScoreP
 
     if (enemy_pawns & passed_mask).is_empty() {
         // This pawn is a passer, assign a bonus depending on its relative rank
-        mg += PASSED_PAWN_BONUS_MG[rel_rank as usize];
-        eg += PASSED_PAWN_BONUS_EG[rel_rank as usize];
+        let (mg_bonus, eg_bonus) = PASSED_PAWN_BONUS[rel_rank as usize];
+        mg += mg_bonus;
+        eg += eg_bonus;
     }
 
     (mg, eg)

@@ -13,7 +13,7 @@ use super::history::HistoryTable;
 pub type MoveScore = i32;
 
 const TT_MOVE: MoveScore = MoveScore::MAX; // Best move stored in the transposition table for this depth
-const LAST_RECAPTURE: MoveScore = MoveScore::MAX - 1; // Capture of the last moved piece
+//const LAST_RECAPTURE: MoveScore = MoveScore::MAX - 1; // Capture of the last moved piece
 const CAPTURE_BASE_VAL: MoveScore = MoveScore::MAX - 1000; // Base value for any other capture
 const PRIMARY_KILLER: MoveScore = CAPTURE_BASE_VAL - 1; // Primary killer move for this depth
 const SECONDARY_KILLER: MoveScore = PRIMARY_KILLER - 1; // Secondary killer move for this depth

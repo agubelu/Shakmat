@@ -6,6 +6,8 @@ pub static mut FILES: [BitBoard; 64] = [BitBoard::new(0); 64];
 pub static mut RANKS: [BitBoard; 64] = [BitBoard::new(0); 64];
 pub static mut WHITE_PASSED_PAWN: [BitBoard; 64] = [BitBoard::new(0); 64];
 pub static mut BLACK_PASSED_PAWN: [BitBoard; 64] = [BitBoard::new(0); 64];
+pub static mut KING_INNER_RING: [BitBoard; 64] = [BitBoard::new(0); 64];
+pub static mut KING_OUTER_RING: [BitBoard; 64] = [BitBoard::new(0); 64];
 
 // Some safe wrappers around the masks, since "static mut"s are inherently
 // unsafe. The operations are totally safe however, since the masks are only
@@ -24,4 +26,12 @@ pub fn white_passed_pawn(pos: u8) -> BitBoard {
 
 pub fn black_passed_pawn(pos: u8) -> BitBoard {
     unsafe { BLACK_PASSED_PAWN[pos as usize] }
+}
+
+pub fn king_inner_ring(pos: u8) -> BitBoard {
+    unsafe { KING_INNER_RING[pos as usize] }
+}
+
+pub fn king_outer_ring(pos: u8) -> BitBoard {
+    unsafe { KING_OUTER_RING[pos as usize] }
 }
