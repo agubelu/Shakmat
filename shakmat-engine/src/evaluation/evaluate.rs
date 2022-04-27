@@ -5,6 +5,7 @@ use super::{piece_tables, EvalData, masks};
 
 // TODO: Note to self: in the future, refactor all of this using const enum generics
 // for the evaluation functions, to reduce duplicities
+// TODO: change to i32 probably to avoid funny overflows
 
 // Represents the evaluation of a position. The goal of using a struct instead of an i16
 // directly is to implement Display, to be able to show the score in a much nicer way
@@ -245,7 +246,8 @@ fn eval_king(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> S
     let (mut mg, mut eg) = (0, 0);
 
     if threat > 100 {
-        mg -= threat * threat / 4096;
+        let k = threat as i32;
+        mg -= ((k * k) / 4096) as i16;
         eg -= threat / 16;
     }
 
