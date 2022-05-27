@@ -68,4 +68,11 @@ impl<'a> EvalData<'a> {
         phase -= 4 * (self.wq + self.bq);
         self.game_phase = (phase * 256 + 12) / 24
     }
+
+    pub fn get_pieces(&self, color: Color) -> &Pieces {
+        match color {
+            Black => self.black_pieces,
+            White => self.white_pieces,
+        }
+    }
 }

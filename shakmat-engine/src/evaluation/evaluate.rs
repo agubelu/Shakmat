@@ -37,6 +37,7 @@ const ROOK_CLOSED_FILE_PENALTY: ScorePair = (-10, -5);
 const PASSED_PAWN_BONUS: [ScorePair; 7] = [
     (0, 0), (10, 1), (5, 5), (1, 25), (15, 50), (50, 100), (100, 150)
 ];
+const CONNECTED_PAWN_BONUS: [i16; 7] = [0, 5, 10, 10, 15, 55, 85];
 
 const KNIGHT_ATTACK_WEIGHT: i16 = 15;
 const BISHOP_ATTACK_WEIGHT: i16 = 45;
@@ -160,6 +161,14 @@ fn eval_pawn(pos: u8, _: BitBoard, color: Color, eval_data: &mut EvalData) -> Sc
         eg += eg_bonus;
     }
 
+    // Check if this pawn is connected to friendly pawns
+    let our_pawns = eval_data.get_pieces(color).pawns;
+    if (attack_bb & our_pawns).is_not_empty() {
+        let bonus = CONNECTED_PAWN_BONUS[rel_rank as usize];
+        mg += bonus;
+        eg += bonus;
+    }
+
     (mg, eg)
 }
 
@@ -240,16 +249,16 @@ fn eval_queen(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> 
 // by multiplying the number of attackers with the total weight of their attacks
 fn eval_king(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> ScorePair {
     // Calculate the threat score
-    let us = color.to_index();
-    let threat = eval_data.attackers_count[us] * eval_data.attacks_weight[us];
+    /*let us = color.to_index();
+    let threat = eval_data.attackers_count[us] * eval_data.attacks_weight[us];*/
 
     let (mut mg, mut eg) = (0, 0);
 
-    if threat > 100 {
+    /*if threat > 100 {
         let k = threat as i32;
         mg -= ((k * k) / 4096) as i16;
         eg -= threat / 16;
-    }
+    }*/
 
     (mg, eg)
 }
