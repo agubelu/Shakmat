@@ -23,43 +23,29 @@ pub fn init_evaluation() {
                 unsafe { masks::RANKS[pos] |= bb };
             }
 
-            // King rings: they are defined as the squares around the king,
-            // plus 3 squares in front facing the enemy side
+            // King rings: the inner ring is the squares around the
+            // king, while the outer one also includes knight jumps
             let file_diff = (file as isize - other_file as isize).abs();
             let rank_diff = (rank as isize - other_rank as isize).abs();
-            let diff1_file = file_diff <= 1;
-            let diff1_rank = rank_diff <= 1;
-            let diff2_rank = rank_diff <= 2;
 
-            // The squares around this one can be added to the king ring of
-            // both colors
-            if diff1_file && diff1_rank {
-                unsafe {
-                    masks::WHITE_KING_RING[pos] |= bb;
-                    masks::BLACK_KING_RING[pos] |= bb;
-                }
+            // Inner ring
+            if file_diff <= 1 && rank_diff <= 1 {
+                unsafe { masks::KING_INNER_RING[pos] |= bb }
             }
 
-            // If this square is in a higher rank, at most 1 file away, and
-            // at most 2 ranks away, add it to white's king ring to add those
-            // 3 squares facing the enemy side
-            if other_rank > rank && diff1_file && diff2_rank {
-                unsafe { masks::WHITE_KING_RING[pos] |= bb };
-            }
-
-            // Same for black, but it has to be a lower rank to face white's side
-            if other_rank < rank && diff1_file && diff2_rank {
-                unsafe { masks::BLACK_KING_RING[pos] |= bb };
+            // Outer ring
+            if (file_diff == 1 && rank_diff == 2) || (rank_diff == 1 && file_diff == 2) {
+                unsafe { masks::KING_OUTER_RING[pos] |= bb }
             }
 
             // Passed pawn masks: Add if the rank is in front (white)
             // or behind (black), and the file is the same or one of the
             // sides (maximum diff of 1)
-            if diff1_file && other_rank > rank {
+            if file_diff <= 1 && other_rank > rank {
                 unsafe { masks::WHITE_PASSED_PAWN[pos] |= bb };
             }
 
-            if diff1_file && other_rank < rank {
+            if file_diff <= 1 && other_rank < rank {
                 unsafe { masks::BLACK_PASSED_PAWN[pos] |= bb };
             }
         }

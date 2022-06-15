@@ -1,4 +1,4 @@
-use shakmat_core::{Board, Pieces, BitBoard, Color::{*, self}, PieceType::{*, self}, move_gen};
+use shakmat_core::{Board, Pieces, BitBoard, Color::{*, self}};
 use super::{Evaluation, masks};
 
 // Auxiliary struct to store values that are used in different parts
@@ -12,7 +12,8 @@ pub struct EvalData<'a> {
     pub black_pieces: &'a Pieces,
 
     // Info about king position and attackers
-    pub king_rings: [BitBoard; 2],
+    pub king_inner_rings: [BitBoard; 2],
+    pub king_outer_rings: [BitBoard; 2],
     pub attackers_count: [i16; 2],
     pub attacks_weight: [i16; 2],
 
@@ -43,12 +44,16 @@ impl<'a> EvalData<'a> {
         let attacks_weight = [0; 2];
         let black_king_pos = board.get_pieces(Black).king.first_piece_index();
         let white_king_pos = board.get_pieces(White).king.first_piece_index();
-        let king_rings = [masks::black_king_ring(black_king_pos),
-                          masks::white_king_ring(white_king_pos)]; // Always black, white
+
+        // King rings: Always [black, white]
+        let king_inner_rings = [masks::king_inner_ring(black_king_pos),
+                                masks::king_inner_ring(white_king_pos)]; 
+        let king_outer_rings = [masks::king_outer_ring(black_king_pos),
+                                masks::king_outer_ring(white_king_pos)]; 
 
         let mut res = Self {bp, br, bn, bb, bq, wp, wr, wn, wb, wq,
              board, white_pieces, black_pieces,
-             attackers_count, attacks_weight, king_rings,
+             attackers_count, attacks_weight, king_inner_rings, king_outer_rings,
              game_phase: 0, score_endgame: 0, score_midgame: 0};
         res.update_game_phase();
         res

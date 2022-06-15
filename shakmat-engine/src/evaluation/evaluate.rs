@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::fmt::{Formatter, Display};
 use std::ops::{Neg, Add, Sub};
 use shakmat_core::{Board, Color::{*, self}, BitBoard, PieceType::{*, self}, move_gen};
@@ -39,10 +40,13 @@ const PASSED_PAWN_BONUS: [ScorePair; 7] = [
 ];
 const CONNECTED_PAWN_BONUS: [i16; 7] = [0, 5, 10, 10, 15, 55, 85];
 
-const KNIGHT_ATTACK_WEIGHT: i16 = 15;
-const BISHOP_ATTACK_WEIGHT: i16 = 45;
-const ROOK_ATTACK_WEIGHT: i16 = 50;
-const QUEEN_ATTACK_WEIGHT: i16 = 75;
+// Attack values for the different pieces for the outer and inner rings
+const MINOR_PIECE_ATTACK: ScorePair = (8, 21);
+const ROOK_ATTACK: ScorePair = (7, 18);
+const QUEEN_ATTACK: ScorePair = (14, 33);
+
+// Penalties for a king under different attack values
+const ATTACKED_PENALTIES: [i16; 64] = [0,0,-1,-2,-4,-6,-8,-11,-14,-18,-21,-25,-30,-35,-40,-45,-51,-57,-63,-69,-76,-83,-91,-98,-106,-114,-123,-132,-141,-150,-159,-169,-179,-189,-200,-211,-222,-233,-245,-257,-269,-281,-294,-306,-319,-333,-346,-360,-374,-388,-403,-418,-433,-448,-463,-479,-495,-511,-527,-544,-561,-578,-595,-613];
 
 // Evaluate how favorable a position is for the current side to move
 // We always calculate it so that positive scores favor white, while
@@ -139,14 +143,13 @@ fn calc_tempo(eval_data: &mut EvalData) {
 fn eval_pawn(pos: u8, _: BitBoard, color: Color, eval_data: &mut EvalData) -> ScorePair {
     let mut mg = PAWN_BASE_VALUE;
     let mut eg = PAWN_BASE_VALUE;
-    let enemy = (!color).to_index();
 
     // Check if this pawn attacks the enemy king ring. Pawns have no attack weight
     // but still count towards the attacker count
     let attack_bb = move_gen::pawn_attacks(pos as usize, color);
-    if (attack_bb & eval_data.king_rings[enemy]).is_not_empty() {
-        eval_data.attackers_count[enemy] += 1;
-    }
+    // if (attack_bb & eval_data.king_rings[enemy]).is_not_empty() {
+    //     eval_data.attackers_count[enemy] += 1;
+    // }
 
     // Check if this is a passed pawn, and add bonuses acordingly
     let (enemy_pawns, passed_mask, rel_rank) = match color {
@@ -173,13 +176,9 @@ fn eval_pawn(pos: u8, _: BitBoard, color: Color, eval_data: &mut EvalData) -> Sc
 }
 
 fn eval_bishop(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> ScorePair {
-    // Check if this bishop attacks the enemy king ring.
+    // Check if this bishop attacks the enemy king rings.
     let attack_bb = move_gen::bishop_moves(pos as usize, eval_data.board.get_all_bitboard());
-    let enemy = (!color).to_index();
-    if (attack_bb & eval_data.king_rings[enemy]).is_not_empty() {
-        eval_data.attackers_count[enemy] += 1;
-        eval_data.attacks_weight[enemy] += BISHOP_ATTACK_WEIGHT;
-    }
+    add_attack_values(attack_bb, !color, eval_data, MINOR_PIECE_ATTACK);
 
     (BISHOP_BASE_VALUE, BISHOP_BASE_VALUE)
 }
@@ -187,11 +186,7 @@ fn eval_bishop(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) ->
 fn eval_knight(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> ScorePair {
     // Check if this knight attacks the enemy king ring.
     let attack_bb = move_gen::knight_moves(pos as usize);
-    let enemy = (!color).to_index();
-    if (attack_bb & eval_data.king_rings[enemy]).is_not_empty() {
-        eval_data.attackers_count[enemy] += 1;
-        eval_data.attacks_weight[enemy] += KNIGHT_ATTACK_WEIGHT;
-    }
+    add_attack_values(attack_bb, !color, eval_data, MINOR_PIECE_ATTACK);
 
     (KNIGHT_BASE_VALUE, KNIGHT_BASE_VALUE)
 }
@@ -202,11 +197,7 @@ fn eval_rook(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> S
 
     // Check if this rook attacks the enemy king ring.
     let attack_bb = move_gen::rook_moves(pos as usize, eval_data.board.get_all_bitboard());
-    let enemy = (!color).to_index();
-    if (attack_bb & eval_data.king_rings[enemy]).is_not_empty() {
-        eval_data.attackers_count[enemy] += 1;
-        eval_data.attacks_weight[enemy] += ROOK_ATTACK_WEIGHT;
-    }
+    add_attack_values(attack_bb, !color, eval_data, ROOK_ATTACK);
 
     let file = masks::file(pos);
     let (friendly_pawns, enemy_pawns) = match color {
@@ -235,11 +226,7 @@ fn eval_rook(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> S
 fn eval_queen(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> ScorePair {
     // Check if this queen attacks the enemy king ring.
     let attack_bb = move_gen::queen_moves(pos as usize, eval_data.board.get_all_bitboard());
-    let enemy = (!color).to_index();
-    if (attack_bb & eval_data.king_rings[enemy]).is_not_empty() {
-        eval_data.attackers_count[enemy] += 1;
-        eval_data.attacks_weight[enemy] += QUEEN_ATTACK_WEIGHT;
-    }
+    add_attack_values(attack_bb, !color, eval_data, QUEEN_ATTACK);
 
     (QUEEN_BASE_VALUE, QUEEN_BASE_VALUE)
 }
@@ -248,17 +235,12 @@ fn eval_queen(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> 
 // follow the path of our lord and savior Stockfish and compute a safety value
 // by multiplying the number of attackers with the total weight of their attacks
 fn eval_king(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> ScorePair {
+    let (mut mg, eg) = (0, 0);
+
     // Calculate the threat score
-    /*let us = color.to_index();
-    let threat = eval_data.attackers_count[us] * eval_data.attacks_weight[us];*/
-
-    let (mut mg, mut eg) = (0, 0);
-
-    /*if threat > 100 {
-        let k = threat as i32;
-        mg -= ((k * k) / 4096) as i16;
-        eg -= threat / 16;
-    }*/
+    let us = color.to_index();
+    let threat = eval_data.attacks_weight[us];
+    mg += ATTACKED_PENALTIES[min(ATTACKED_PENALTIES.len() - 1, threat as usize / 8)];
 
     (mg, eg)
 }
@@ -279,6 +261,16 @@ fn eval_bitboard(bb: BitBoard, piece_type: PieceType, color: Color, eval_data: &
         .map(|i| eval_func(i, bb, color, eval_data))
         .fold((0, 0), |a, b| (a.0 + b.0, a.1 + b.1))
 }
+
+///////////////////////////////////////////////////////////////////////////////
+/// Aux function to add attack values from a certain piece to the enemy king
+fn add_attack_values(attack_bb: BitBoard, enemy: Color, eval_data: &mut EvalData, weights: ScorePair) {
+    let enemy_i = enemy.to_index();
+    let outer_ring_attacks = (attack_bb & eval_data.king_outer_rings[enemy_i]).count();
+    let inner_ring_attacks = (attack_bb & eval_data.king_inner_rings[enemy_i]).count();
+    eval_data.attacks_weight[enemy_i] = outer_ring_attacks as i16 * weights.0 + inner_ring_attacks as i16 * weights.1;
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Aux functions to add/substract positional scores
