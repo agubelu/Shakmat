@@ -45,6 +45,13 @@ const MINOR_PIECE_ATTACK: ScorePair = (8, 21);
 const ROOK_ATTACK: ScorePair = (7, 18);
 const QUEEN_ATTACK: ScorePair = (14, 33);
 
+// Danger values for a king on a semi-open file or with semi-open flanks
+const KING_SEMIOPEN_FILE_DANGER: i16 = 70;
+const KING_SEMIOPEN_FLANK_DANGER: i16 = 50;
+
+// King danger reduction if the opponent doesn't have a queen
+const NO_QUEEN_DANGER_RED: i16 = 800;
+
 // Penalties for a king under different attack values
 const ATTACKED_PENALTIES: [i16; 64] = [0,0,-1,-2,-4,-6,-8,-11,-14,-18,-21,-25,-30,-35,-40,-45,-51,-57,-63,-69,-76,-83,-91,-98,-106,-114,-123,-132,-141,-150,-159,-169,-179,-189,-200,-211,-222,-233,-245,-257,-269,-281,-294,-306,-319,-333,-346,-360,-374,-388,-403,-418,-433,-448,-463,-479,-495,-511,-527,-544,-561,-578,-595,-613];
 
@@ -236,11 +243,39 @@ fn eval_queen(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> 
 // by multiplying the number of attackers with the total weight of their attacks
 fn eval_king(pos: u8, bb: BitBoard, color: Color, eval_data: &mut EvalData) -> ScorePair {
     let (mut mg, eg) = (0, 0);
+    let enemy = !color;
+    let our_pawns = eval_data.get_pieces(color).pawns;
+    let file = pos % 8;
+    let king_file_mask = masks::file(pos);
 
-    // Calculate the threat score
+    // Calculate the threat score from the attacks from other pieces
     let us = color.to_index();
-    let threat = eval_data.attacks_weight[us];
-    mg += ATTACKED_PENALTIES[min(ATTACKED_PENALTIES.len() - 1, threat as usize / 8)];
+    let mut threat = eval_data.attacks_weight[us];
+
+    // Assignate a penalty if the king is in a semi-open file
+    if (our_pawns & king_file_mask).is_empty() {
+        threat += KING_SEMIOPEN_FILE_DANGER;
+    }
+
+    // Penalty if the king has semi-open flanks to its sides
+    // The right flank is analyzed if the king is not on the H file
+    if file != 0 && (our_pawns & (king_file_mask >> 1)).is_empty() {
+        threat += KING_SEMIOPEN_FLANK_DANGER;
+    }
+
+    // And the left flank is analyzed if the king is not on the A file
+    if file != 7 && (our_pawns & (king_file_mask << 1)).is_empty() {
+        threat += KING_SEMIOPEN_FLANK_DANGER;
+    }
+
+    // Reduce king danger if the enemy doesn't have a queen
+    let enemy_queens = eval_data.get_pieces(enemy).queens;
+    threat -= NO_QUEEN_DANGER_RED * enemy_queens.is_empty() as i16;
+
+    // Index the king safety penalty using the threat value and
+    // setting it to 0 if it's negative
+    let threat_index = threat.max(0);
+    mg += ATTACKED_PENALTIES[(threat_index as usize / 8).min(ATTACKED_PENALTIES.len() - 1)];
 
     (mg, eg)
 }
