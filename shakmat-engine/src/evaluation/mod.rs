@@ -4,6 +4,6 @@ mod init;
 mod masks;
 mod piece_tables;
 
-pub use evaluate::{Evaluation, evaluate_position};
+pub use evaluate::{Evaluation, EvalScore, evaluate_position};
 pub use eval_data::EvalData;
 pub use init::init_evaluation;

@@ -3,31 +3,30 @@ use std::ops::{Neg, Add, Sub};
 use shakmat_core::{Board, Color::{*, self}, BitBoard, PieceType::{*, self}, move_gen};
 use super::{piece_tables, EvalData, masks};
 
-// TODO: change to i32 probably to avoid funny overflows
 pub type EvalScore = i16;
-pub type ScorePair = (i16, i16);
+pub type ScorePair = (EvalScore, EvalScore);
 
 // Represents the evaluation of a position. The goal of using a struct instead of an i16
 // directly is to implement Display, to be able to show the score in a much nicer way
 // (for example, plies to checkmate instead of the raw score)
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Evaluation { score: i16 } 
+pub struct Evaluation { score: EvalScore } 
 
 // The contempt factor is the score that the engine associates with a draw.
 // A negative value means that the engine assumes it is superior to its opponent,
 // so drawing is penalized. Conversely, a positive value means that the engine assumes
 // itself to be inferior, so it encourages drawing when it cannot find a decisive advantage.
-const CONTEMPT: i16 = 0;
+const CONTEMPT: EvalScore = 0;
 
 // Bonuses and penalties, measured in centipawns
 // Values that are pairs represent the scores for the middlegame and endgame phases
-const PAWN_BASE_VALUE: i16 = 100;
-const BISHOP_BASE_VALUE: i16 = 300;
-const KNIGHT_BASE_VALUE: i16 = 300;
-const ROOK_BASE_VALUE: i16 = 500;
-const QUEEN_BASE_VALUE: i16 = 900;
+const PAWN_BASE_VALUE: EvalScore = 100;
+const BISHOP_BASE_VALUE: EvalScore = 300;
+const KNIGHT_BASE_VALUE: EvalScore = 300;
+const ROOK_BASE_VALUE: EvalScore = 500;
+const QUEEN_BASE_VALUE: EvalScore = 900;
 
-const TEMPO_BONUS: i16 = 28;
+const TEMPO_BONUS: EvalScore = 28;
 const BISHOP_PAIR_BONUS: ScorePair = (20, 60);
 const ROOK_OPEN_FILE_BONUS: ScorePair = (50, 25);
 const ROOK_SEMIOPEN_FILE_BONUS: ScorePair = (20, 10);
@@ -35,7 +34,7 @@ const ROOK_CLOSED_FILE_PENALTY: ScorePair = (-10, -5);
 const PASSED_PAWN_BONUS: [ScorePair; 7] = [
     (0, 0), (10, 1), (5, 5), (1, 25), (15, 50), (50, 100), (100, 150)
 ];
-const CONNECTED_PAWN_BONUS: [i16; 7] = [0, 5, 10, 10, 15, 55, 85];
+const CONNECTED_PAWN_BONUS: [EvalScore; 7] = [0, 5, 10, 10, 15, 55, 85];
 
 // Attack values for the different pieces for the outer and inner rings
 const MINOR_PIECE_ATTACK: ScorePair = (8, 21);
@@ -43,14 +42,14 @@ const ROOK_ATTACK: ScorePair = (7, 18);
 const QUEEN_ATTACK: ScorePair = (14, 33);
 
 // Danger values for a king on a semi-open file or with semi-open flanks
-const KING_SEMIOPEN_FILE_DANGER: i16 = 70;
-const KING_SEMIOPEN_FLANK_DANGER: i16 = 50;
+const KING_SEMIOPEN_FILE_DANGER: EvalScore = 70;
+const KING_SEMIOPEN_FLANK_DANGER: EvalScore = 50;
 
 // King danger reduction if the opponent doesn't have a queen
-const NO_QUEEN_DANGER_RED: i16 = 800;
+const NO_QUEEN_DANGER_RED: EvalScore = 800;
 
 // Penalties for a king under different attack values
-const ATTACKED_PENALTIES: [i16; 64] = [0,0,-1,-2,-4,-6,-8,-11,-14,-18,-21,-25,-30,-35,-40,-45,-51,-57,-63,-69,-76,-83,-91,-98,-106,-114,-123,-132,-141,-150,-159,-169,-179,-189,-200,-211,-222,-233,-245,-257,-269,-281,-294,-306,-319,-333,-346,-360,-374,-388,-403,-418,-433,-448,-463,-479,-495,-511,-527,-544,-561,-578,-595,-613];
+const ATTACKED_PENALTIES: [EvalScore; 64] = [0,0,-1,-2,-4,-6,-8,-11,-14,-18,-21,-25,-30,-35,-40,-45,-51,-57,-63,-69,-76,-83,-91,-98,-106,-114,-123,-132,-141,-150,-159,-169,-179,-189,-200,-211,-222,-233,-245,-257,-269,-281,-294,-306,-319,-333,-346,-360,-374,-388,-403,-418,-433,-448,-463,-479,-495,-511,-527,-544,-561,-578,-595,-613];
 
 // Bonuses and penalties for the mobility of different pieces
 const KNIGHT_MOBILITY_BONUS: [ScorePair; 9] = [(-62, -79), (-53, -57), (-12, -31), (-3, -17), (3, 7), (12, 13), (21, 16), (28, 21), (37, 26)];
@@ -129,8 +128,8 @@ fn calc_bishop_pair_bonus(eval_data: &mut EvalData) {
     let bonus_early = BISHOP_PAIR_BONUS.0;
     let bonus_late = BISHOP_PAIR_BONUS.1;
 
-    let white_pair = (eval_data.white_pieces.bishops.count() >= 2) as i16;
-    let black_pair = (eval_data.black_pieces.bishops.count() >= 2) as i16;
+    let white_pair = (eval_data.white_pieces.bishops.count() >= 2) as EvalScore;
+    let black_pair = (eval_data.black_pieces.bishops.count() >= 2) as EvalScore;
     
     eval_data.score_midgame += bonus_early * white_pair - bonus_early * black_pair;
     eval_data.score_endgame += bonus_late * white_pair - bonus_late * black_pair;
@@ -318,7 +317,7 @@ fn eval_king<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData)
 
     // Reduce king danger if the enemy doesn't have a queen
     let enemy_queens = eval_data.get_pieces(enemy).queens;
-    threat -= NO_QUEEN_DANGER_RED * enemy_queens.is_empty() as i16;
+    threat -= NO_QUEEN_DANGER_RED * enemy_queens.is_empty() as EvalScore;
 
     // Index the king safety penalty using the threat value and
     // setting it to 0 if it's negative
@@ -352,7 +351,7 @@ fn add_attack_values<const COLOR: Color>(attack_bb: BitBoard, eval_data: &mut Ev
     let enemy_i = enemy.to_index();
     let outer_ring_attacks = (attack_bb & eval_data.king_outer_rings[enemy_i]).count();
     let inner_ring_attacks = (attack_bb & eval_data.king_inner_rings[enemy_i]).count();
-    eval_data.attacks_weight[enemy_i] = outer_ring_attacks as i16 * weights.0 + inner_ring_attacks as i16 * weights.1;
+    eval_data.attacks_weight[enemy_i] = outer_ring_attacks as EvalScore * weights.0 + inner_ring_attacks as EvalScore * weights.1;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -378,7 +377,7 @@ fn sub_pos_scores(eval_data: &mut EvalData, bb: BitBoard, table: &[ScorePair]) {
 ///////////////////////////////////////////////////////////////////////////////
 
 impl Evaluation {
-    pub const fn new(score: i16) -> Self {
+    pub const fn new(score: EvalScore) -> Self {
         Self { score }
     }
 
@@ -390,14 +389,14 @@ impl Evaluation {
     // and viceversa. Otherwise, it overflows when swapping its sign
     // and all sort of bad things happen.
     pub fn min_val() -> Self {
-        Self::new(i16::MIN + 1)
+        Self::new(EvalScore::MIN + 1)
     }
 
     pub fn max_val() -> Self {
-        Self::new(i16::MAX)
+        Self::new(EvalScore::MAX)
     }
 
-    pub fn score(&self) -> i16 {
+    pub fn score(&self) -> EvalScore {
         self.score
     }
 
@@ -422,18 +421,18 @@ impl Neg for Evaluation {
     }
 }
 
-impl Sub<i16> for Evaluation {
+impl Sub<EvalScore> for Evaluation {
     type Output = Self;
 
-    fn sub(self, rhs: i16) -> Self::Output {
+    fn sub(self, rhs: EvalScore) -> Self::Output {
         Self::new(self.score - rhs)
     }
 }
 
-impl Add<i16> for Evaluation {
+impl Add<EvalScore> for Evaluation {
     type Output = Self;
 
-    fn add(self, rhs: i16) -> Self::Output {
+    fn add(self, rhs: EvalScore) -> Self::Output {
         Self::new(self.score + rhs)
     }
 }
@@ -454,14 +453,14 @@ impl Add<Self> for Evaluation {
     }
 }
 
-impl PartialOrd<i16> for Evaluation {
-    fn partial_cmp(&self, other: &i16) -> Option<std::cmp::Ordering> {
+impl PartialOrd<EvalScore> for Evaluation {
+    fn partial_cmp(&self, other: &EvalScore) -> Option<std::cmp::Ordering> {
         self.score.partial_cmp(other)
     }
 }
 
-impl PartialEq<i16> for Evaluation {
-    fn eq(&self, other: &i16) -> bool {
+impl PartialEq<EvalScore> for Evaluation {
+    fn eq(&self, other: &EvalScore) -> bool {
         self.score == *other
     }
 }
@@ -469,9 +468,9 @@ impl PartialEq<i16> for Evaluation {
 impl Display for Evaluation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.is_positive_mate() {
-            write!(f, "M{}", (i16::MAX - self.score()) / 2)
+            write!(f, "M{}", (EvalScore::MAX - self.score()) / 2)
         } else if self.is_negative_mate() {
-            write!(f, "-M{}", (self.score() - i16::MIN - 1) / 2)
+            write!(f, "-M{}", (self.score() - EvalScore::MIN - 1) / 2)
         } else {
             write!(f, "{:+.2}", self.score() as f32 / 100.0)
         }

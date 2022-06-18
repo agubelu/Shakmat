@@ -1,21 +1,21 @@
 use shakmat_core::{Board, Pieces, BitBoard, Color::{*, self}};
-use super::{Evaluation, masks};
+use super::{Evaluation, EvalScore, masks};
 
 // Auxiliary struct to store values that are used in different parts
 // of the evaluation, to avoid calculating them multiple times
 pub struct EvalData<'a> {
     pub board: &'a Board,
-    pub game_phase: i16,
-    pub score_midgame: i16,
-    pub score_endgame: i16,
+    pub game_phase: EvalScore,
+    pub score_midgame: EvalScore,
+    pub score_endgame: EvalScore,
     pub white_pieces: &'a Pieces,
     pub black_pieces: &'a Pieces,
 
     // Info about king position and attackers
     pub king_inner_rings: [BitBoard; 2],
     pub king_outer_rings: [BitBoard; 2],
-    pub attackers_count: [i16; 2],
-    pub attacks_weight: [i16; 2],
+    pub attackers_count: [EvalScore; 2],
+    pub attacks_weight: [EvalScore; 2],
 
     // Info about the safe mobility squares, i.e., not controlled by enemy pawns 
     pub safe_mobility_area: [BitBoard; 2],
@@ -25,16 +25,16 @@ pub struct EvalData<'a> {
 impl<'a> EvalData<'a> {
     pub fn new(board: &'a Board) -> Self {
         let black_pieces = board.get_pieces(Black);
-        let br = black_pieces.rooks.count() as i16;
-        let bn = black_pieces.knights.count() as i16;
-        let bb = black_pieces.bishops.count() as i16;
-        let bq = black_pieces.queens.count() as i16;
+        let br = black_pieces.rooks.count() as EvalScore;
+        let bn = black_pieces.knights.count() as EvalScore;
+        let bb = black_pieces.bishops.count() as EvalScore;
+        let bq = black_pieces.queens.count() as EvalScore;
 
         let white_pieces = board.get_pieces(White);
-        let wr = white_pieces.rooks.count() as i16;
-        let wn = white_pieces.knights.count() as i16;
-        let wb = white_pieces.bishops.count() as i16;
-        let wq = white_pieces.queens.count() as i16;
+        let wr = white_pieces.rooks.count() as EvalScore;
+        let wn = white_pieces.knights.count() as EvalScore;
+        let wb = white_pieces.bishops.count() as EvalScore;
+        let wq = white_pieces.queens.count() as EvalScore;
 
         let attackers_count = [0; 2];
         let attacks_weight = [0; 2];
@@ -63,7 +63,7 @@ impl<'a> EvalData<'a> {
         // The values are temporarily promoted to i32 to avoid overflowing when
         // multiplying by the game phase
         let eval = ((self.score_midgame as i32 * (256 - self.game_phase as i32)) + (self.score_endgame as i32 * self.game_phase as i32)) / 256;
-        Evaluation::new(eval as i16 * self.board.turn_color().sign())
+        Evaluation::new(eval as EvalScore * self.board.turn_color().sign() as EvalScore)
     }
 
     pub fn get_pieces(&self, color: Color) -> &Pieces {

@@ -4,7 +4,7 @@ use std::cmp::{min, max};
 use super::move_ordering::{order_moves, RatedMove, MoveScore};
 use super::pv_line::PVLine;
 use super::history::HistoryTable;
-use crate::evaluation::{evaluate_position, Evaluation};
+use crate::evaluation::{evaluate_position, Evaluation, EvalScore};
 use crate::trasposition::{TTable, TTEntry, NodeType};
 use crate::time::TimeManager;
 
@@ -21,17 +21,17 @@ const MAX_KILLERS: usize = 2;
 const NULL_MOVE_REDUCTION: u8 = 2;
 
 // Width for the aspiration window
-const ASP_WINDOW: i16 = 30;
+const ASP_WINDOW: EvalScore = 30;
 
 // The amount that a score must drop between iterations for
 // panic time to be allocated
-const PANIC_DROP: i16 = 30;
+const PANIC_DROP: EvalScore = 30;
 
 // Number of legal moves after which to start applying late move reductions
 const LMR_MOVES: usize = 2;
 
 // Score margins for futility pruning
-const FUTILIY_MARGINS: [i16; 6] = [0, 100, 160, 220, 280, 340];
+const FUTILIY_MARGINS: [EvalScore; 6] = [0, 100, 160, 220, 280, 340];
 
 // Typedef for the killer moves table
 pub type Killers = [[Move; MAX_KILLERS]; LIMIT_DEPTH + 2];
@@ -447,7 +447,7 @@ impl Search {
             // the corresponding score.
             best_score = if board.is_check(color_moving) {
                 // Checkmate
-                Evaluation::min_val() + current_depth as i16
+                Evaluation::min_val() + current_depth as EvalScore
             } else {
                 // Stalemate or other cause of draw
                 Evaluation::contempt()
