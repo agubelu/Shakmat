@@ -17,6 +17,9 @@ pub struct EvalData<'a> {
     pub attackers_count: [i16; 2],
     pub attacks_weight: [i16; 2],
 
+    // Info about the safe mobility squares, i.e., not controlled by enemy pawns 
+    pub safe_mobility_area: [BitBoard; 2],
+
     // Count of pieces of a certain type for every side
     // Do I really need these in the future...?
     pub wp: i16, pub wr: i16, pub wb: i16, pub wn: i16, pub wq: i16,
@@ -45,14 +48,15 @@ impl<'a> EvalData<'a> {
         let black_king_pos = board.get_pieces(Black).king.first_piece_index();
         let white_king_pos = board.get_pieces(White).king.first_piece_index();
 
-        // King rings: Always [black, white]
+        // Arrays: Always [black, white]
         let king_inner_rings = [masks::king_inner_ring(black_king_pos),
                                 masks::king_inner_ring(white_king_pos)]; 
         let king_outer_rings = [masks::king_outer_ring(black_king_pos),
                                 masks::king_outer_ring(white_king_pos)]; 
+        let safe_mobility_area = [BitBoard::ones(); 2];
 
         let mut res = Self {bp, br, bn, bb, bq, wp, wr, wn, wb, wq,
-             board, white_pieces, black_pieces,
+             board, white_pieces, black_pieces, safe_mobility_area,
              attackers_count, attacks_weight, king_inner_rings, king_outer_rings,
              game_phase: 0, score_endgame: 0, score_midgame: 0};
         res.update_game_phase();

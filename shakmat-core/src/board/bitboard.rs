@@ -16,6 +16,10 @@ impl BitBoard {
         BitBoard { bb }
     }
 
+    pub const fn ones() -> Self {
+        Self::new(u64::MAX)
+    }
+
     pub fn from_square(square: u8) -> Self {
         BitBoard { bb: 1 << square }
     }

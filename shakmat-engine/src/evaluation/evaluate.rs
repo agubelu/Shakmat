@@ -52,6 +52,12 @@ const NO_QUEEN_DANGER_RED: i16 = 800;
 // Penalties for a king under different attack values
 const ATTACKED_PENALTIES: [i16; 64] = [0,0,-1,-2,-4,-6,-8,-11,-14,-18,-21,-25,-30,-35,-40,-45,-51,-57,-63,-69,-76,-83,-91,-98,-106,-114,-123,-132,-141,-150,-159,-169,-179,-189,-200,-211,-222,-233,-245,-257,-269,-281,-294,-306,-319,-333,-346,-360,-374,-388,-403,-418,-433,-448,-463,-479,-495,-511,-527,-544,-561,-578,-595,-613];
 
+// Bonuses and penalties for the mobility of different pieces
+const KNIGHT_MOBILITY_BONUS: [ScorePair; 9] = [(-62, -79), (-53, -57), (-12, -31), (-3, -17), (3, 7), (12, 13), (21, 16), (28, 21), (37, 26)];
+const BISHOP_MOBILITY_BONUS: [ScorePair; 14] = [(-47, -59), (-20, -25), (14, -8), (29, 12), (39, 21), (53, 40), (53, 56), (60, 58), (62, 65), (69, 72), (78, 78), (83, 87), (91, 88), (96, 98)];
+const ROOK_MOBILITY_BONUS: [ScorePair; 15] = [(-60, -82), (-24,-15), (0, 17), (3, 43), (4, 72), (14, 100), (20, 102), (30, 122), (41, 133), (41, 139), (41, 153), (45, 160), (57, 165), (58, 170), (67, 175)];
+const QUEEN_MOBILITY_BONUS: [ScorePair; 28] = [(-29, -49), (-16, -29), (-8, -8), (-8, 17), (18, 39), (25, 54), (23, 59), (37, 73), (41, 76), (54, 95), (65, 95), (68, 101), (69, 124), (70, 128), (70, 132), (70, 133), (71, 136), (72, 140), (74, 147), (76, 149), (90, 153), (104, 169), (105, 171), (106, 171), (112, 178), (114, 185), (114, 187), (119, 221)];
+
 // Evaluate how favorable a position is for the current side to move
 // We always calculate it so that positive scores favor white, while
 // negative scores favor black.
@@ -69,9 +75,12 @@ pub fn evaluate_position(board: &Board) -> Evaluation {
 }
 
 // Computes the total piece score of a color, using the specialized functions
-// It's very important that we evaluate the king last, since the king safety
-// evaluation depends on data that will be saved in the eval_data by other pieces
+// It's very important that we evaluate the different pieces in the current order,
+// since some evaluation terms depend on things that are calculated during the
+// evaluation of other pieces
 fn calc_piece_score(eval_data: &mut EvalData) {  
+    // Pawns go first, since we use their evaluation to update the squares
+    // controlled by the pawns of both sides
     let (wp_mg, wp_eg) = eval_bitboard::<{White}, {Pawn}>(eval_data.white_pieces.pawns, eval_data);
     let (bp_mg, bp_eg) = eval_bitboard::<{Black}, {Pawn}>(eval_data.black_pieces.pawns, eval_data);
 
@@ -87,7 +96,8 @@ fn calc_piece_score(eval_data: &mut EvalData) {
     let (wq_mg, wq_eg) = eval_bitboard::<{White}, {Queen}>(eval_data.white_pieces.queens, eval_data);
     let (bq_mg, bq_eg) = eval_bitboard::<{Black}, {Queen}>(eval_data.black_pieces.queens, eval_data);
 
-    // Always last!
+    // The king goes always last, because many king safety terms depend on 
+    // the squares attacked by the previous pieces
     let (wk_mg, wk_eg) = eval_bitboard::<{White}, {King}>(eval_data.white_pieces.king, eval_data);
     let (bk_mg, bk_eg) = eval_bitboard::<{Black}, {King}>(eval_data.black_pieces.king, eval_data);
 
@@ -147,13 +157,11 @@ fn calc_tempo(eval_data: &mut EvalData) {
 fn eval_pawn<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData) -> ScorePair {
     let mut mg = PAWN_BASE_VALUE;
     let mut eg = PAWN_BASE_VALUE;
+    let them = (!COLOR).to_index();
 
-    // Check if this pawn attacks the enemy king ring. Pawns have no attack weight
-    // but still count towards the attacker count
+    // Check the squares controlled by this pawn
     let attack_bb = move_gen::pawn_attacks(pos as usize, COLOR);
-    // if (attack_bb & eval_data.king_rings[enemy]).is_not_empty() {
-    //     eval_data.attackers_count[enemy] += 1;
-    // }
+    eval_data.safe_mobility_area[them] &= !attack_bb;
 
     // Check if this is a passed pawn, and add bonuses acordingly
     let (enemy_pawns, passed_mask, rel_rank) = match COLOR {
@@ -183,6 +191,9 @@ fn eval_pawn<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData)
 }
 
 fn eval_bishop<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData) -> ScorePair {
+    let (mut mg, mut eg) = (BISHOP_BASE_VALUE, BISHOP_BASE_VALUE);
+    let us = COLOR.to_index();
+
     // Check if this bishop attacks the enemy king rings.
     // X-ray attacks: bishops can see through queens, so we remove them
     // when calculating bishop attacks to the enemy king
@@ -190,20 +201,39 @@ fn eval_bishop<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalDat
     let attack_bb = move_gen::bishop_moves(pos as usize, eval_data.board.get_all_bitboard() & our_queens_mask);
     add_attack_values::<COLOR>(attack_bb, eval_data, MINOR_PIECE_ATTACK);
 
-    (BISHOP_BASE_VALUE, BISHOP_BASE_VALUE)
+    // Calculate the mobility score for this bishop
+    let moves = move_gen::bishop_moves(pos as usize, eval_data.board.get_all_bitboard());
+    let safe_moves = (moves & eval_data.safe_mobility_area[us]).count() as usize;
+
+    let (mg_mob_bonus, eg_mob_bonus) = BISHOP_MOBILITY_BONUS[safe_moves];
+    mg += mg_mob_bonus;
+    eg += eg_mob_bonus;
+
+    (mg, eg)
 }
 
 fn eval_knight<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData) -> ScorePair {
+    let (mut mg, mut eg) = (KNIGHT_BASE_VALUE, KNIGHT_BASE_VALUE);
+    let us = COLOR.to_index();
+
     // Check if this knight attacks the enemy king ring.
     let attack_bb = move_gen::knight_moves(pos as usize);
     add_attack_values::<COLOR>(attack_bb, eval_data, MINOR_PIECE_ATTACK);
 
-    (KNIGHT_BASE_VALUE, KNIGHT_BASE_VALUE)
+    // Calculate the mobility score for this knight
+    let safe_moves = (attack_bb & eval_data.safe_mobility_area[us]).count() as usize;
+
+    let (mg_mob_bonus, eg_mob_bonus) = KNIGHT_MOBILITY_BONUS[safe_moves];
+    mg += mg_mob_bonus;
+    eg += eg_mob_bonus;
+
+    (mg, eg)
 }
 
 fn eval_rook<const COLOR: Color>(pos: u8, bb: BitBoard, eval_data: &mut EvalData) -> ScorePair {
     let mut mg = ROOK_BASE_VALUE;
     let mut eg = ROOK_BASE_VALUE;
+    let us = COLOR.to_index();
 
     // Check if this rook attacks the enemy king ring.
     // X-ray attacks: rooks can see through queens and other rooks, so we remove them
@@ -211,6 +241,14 @@ fn eval_rook<const COLOR: Color>(pos: u8, bb: BitBoard, eval_data: &mut EvalData
     let our_pieces_mask = !(eval_data.board.get_pieces(COLOR).queens | bb);
     let attack_bb = move_gen::rook_moves(pos as usize, eval_data.board.get_all_bitboard() & our_pieces_mask);
     add_attack_values::<COLOR>(attack_bb, eval_data, ROOK_ATTACK);
+
+    // Calculate the mobility score for this rook
+    let moves = move_gen::rook_moves(pos as usize, eval_data.board.get_all_bitboard());
+    let safe_moves = (moves & eval_data.safe_mobility_area[us]).count() as usize;
+
+    let (mg_mob_bonus, eg_mob_bonus) = ROOK_MOBILITY_BONUS[safe_moves];
+    mg += mg_mob_bonus;
+    eg += eg_mob_bonus;
 
     let file = masks::file(pos);
     let (friendly_pawns, enemy_pawns) = match COLOR {
@@ -237,11 +275,21 @@ fn eval_rook<const COLOR: Color>(pos: u8, bb: BitBoard, eval_data: &mut EvalData
 }
 
 fn eval_queen<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData) -> ScorePair {
+    let (mut mg, mut eg) = (QUEEN_BASE_VALUE, QUEEN_BASE_VALUE);
+    let us = COLOR.to_index();
+
     // Check if this queen attacks the enemy king ring.
     let attack_bb = move_gen::queen_moves(pos as usize, eval_data.board.get_all_bitboard());
     add_attack_values::<COLOR>(attack_bb, eval_data, QUEEN_ATTACK);
 
-    (QUEEN_BASE_VALUE, QUEEN_BASE_VALUE)
+    // Calculate the mobility score for this queen
+    let safe_moves = (attack_bb & eval_data.safe_mobility_area[us]).count() as usize;
+
+    let (mg_mob_bonus, eg_mob_bonus) = QUEEN_MOBILITY_BONUS[safe_moves];
+    mg += mg_mob_bonus;
+    eg += eg_mob_bonus;
+
+    (mg, eg)
 }
 
 // There are approximately 99999 ways to evaluate a king's safety, so here we
