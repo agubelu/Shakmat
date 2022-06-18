@@ -68,7 +68,6 @@ pub fn evaluate_position(board: &Board) -> Evaluation {
 
     calc_piece_score(&mut eval_data);
     calc_positional_score(&mut eval_data);
-    calc_control_score(&mut eval_data);
     calc_bishop_pair_bonus(&mut eval_data);
     calc_tempo(&mut eval_data);
     eval_data.compute_score()
@@ -105,15 +104,6 @@ fn calc_piece_score(eval_data: &mut EvalData) {
     eval_data.score_endgame += wp_eg + wb_eg + wn_eg + wr_eg + wq_eg + wk_eg - bp_eg - bb_eg - bn_eg - br_eg - bq_eg - bk_eg;
 }
 
-// Gives an extra centipoint for each square controlled, and 2 points
-// for each one in the endgame stage.
-fn calc_control_score(eval_data: &mut EvalData) {
-    let control_white = eval_data.board.get_attack_bitboard(White).count() as i16;
-    let control_black = eval_data.board.get_attack_bitboard(Black).count() as i16;
-    eval_data.score_midgame += control_white - control_black;
-    eval_data.score_endgame += 2 * (control_white - control_black);
-}
-
 // Gives positional bonuses to each piece using the corresponding table,
 // for both the middlegame and endgame phases.
 fn calc_positional_score(eval_data: &mut EvalData) {
@@ -139,8 +129,8 @@ fn calc_bishop_pair_bonus(eval_data: &mut EvalData) {
     let bonus_early = BISHOP_PAIR_BONUS.0;
     let bonus_late = BISHOP_PAIR_BONUS.1;
 
-    let white_pair = (eval_data.wb >= 2) as i16;
-    let black_pair = (eval_data.bb >= 2) as i16;
+    let white_pair = (eval_data.white_pieces.bishops.count() >= 2) as i16;
+    let black_pair = (eval_data.black_pieces.bishops.count() >= 2) as i16;
     
     eval_data.score_midgame += bonus_early * white_pair - bonus_early * black_pair;
     eval_data.score_endgame += bonus_late * white_pair - bonus_late * black_pair;
