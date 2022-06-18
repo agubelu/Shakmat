@@ -184,7 +184,10 @@ fn eval_pawn<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData)
 
 fn eval_bishop<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData) -> ScorePair {
     // Check if this bishop attacks the enemy king rings.
-    let attack_bb = move_gen::bishop_moves(pos as usize, eval_data.board.get_all_bitboard());
+    // X-ray attacks: bishops can see through queens, so we remove them
+    // when calculating bishop attacks to the enemy king
+    let our_queens_mask = !eval_data.board.get_pieces(COLOR).queens;
+    let attack_bb = move_gen::bishop_moves(pos as usize, eval_data.board.get_all_bitboard() & our_queens_mask);
     add_attack_values::<COLOR>(attack_bb, eval_data, MINOR_PIECE_ATTACK);
 
     (BISHOP_BASE_VALUE, BISHOP_BASE_VALUE)
@@ -198,12 +201,15 @@ fn eval_knight<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalDat
     (KNIGHT_BASE_VALUE, KNIGHT_BASE_VALUE)
 }
 
-fn eval_rook<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData) -> ScorePair {
+fn eval_rook<const COLOR: Color>(pos: u8, bb: BitBoard, eval_data: &mut EvalData) -> ScorePair {
     let mut mg = ROOK_BASE_VALUE;
     let mut eg = ROOK_BASE_VALUE;
 
     // Check if this rook attacks the enemy king ring.
-    let attack_bb = move_gen::rook_moves(pos as usize, eval_data.board.get_all_bitboard());
+    // X-ray attacks: rooks can see through queens and other rooks, so we remove them
+    // when calculating rook attacks to the enemy king
+    let our_pieces_mask = !(eval_data.board.get_pieces(COLOR).queens | bb);
+    let attack_bb = move_gen::rook_moves(pos as usize, eval_data.board.get_all_bitboard() & our_pieces_mask);
     add_attack_values::<COLOR>(attack_bb, eval_data, ROOK_ATTACK);
 
     let file = masks::file(pos);
