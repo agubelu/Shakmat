@@ -28,7 +28,7 @@ const ASP_WINDOW: EvalScore = 30;
 const PANIC_DROP: EvalScore = 30;
 
 // Number of legal moves after which to start applying late move reductions
-const LMR_MOVES: usize = 2;
+const LMR_MOVES: usize = 1;
 
 // Score margins for futility pruning
 const FUTILIY_MARGINS: [EvalScore; 6] = [0, 100, 160, 220, 280, 340];
