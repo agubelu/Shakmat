@@ -81,7 +81,7 @@ depth: Option<u8>, move_ms: Option<u64>, total_ms: Option<u64>) -> ApiResponse {
     let search_options = SearchOptions { 
         total_time_remaining: total_ms,
         moves_until_control: None, //TO-DO
-        time_for_move: None, 
+        time_for_move: move_ms,
         max_depth: depth,
     };
 

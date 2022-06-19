@@ -41,7 +41,7 @@ impl BitBoard {
     }
 
     pub fn is_not_empty(&self) -> bool {
-        self.bb != 0
+        !self.is_empty()
     }
 
     pub fn piece_indices(&self) -> PieceIndexIter {
@@ -80,7 +80,7 @@ impl Display for BitBoard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.bb.to_be_bytes().iter()
             .map(|b| format!("{:#010b}", b))
-            .map(|bin| bin[2..].replace("0", "."))
+            .map(|bin| bin[2..].replace('0', "."))
             .fold(String::new(), |a, b| format!("{}{}\n", a, b))
             .fmt(f)
     }
