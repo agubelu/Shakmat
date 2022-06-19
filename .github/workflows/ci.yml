@@ -11,6 +11,8 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
+          override: true
+          components: rustfmt, clippy
       - run: cargo test --release -- --test-threads=1
 #     we set test-threads=1 to avoid running tests in parallel,
 #     since each test uses all available CPU cores
