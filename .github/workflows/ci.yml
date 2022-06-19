@@ -10,7 +10,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
       - run: cargo test --release -- --test-threads=1
 #     we set test-threads=1 to avoid running tests in parallel,
 #     since each test uses all available CPU cores
