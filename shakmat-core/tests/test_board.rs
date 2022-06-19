@@ -4,7 +4,7 @@ use shakmat_core::{Board, DEFAULT_FEN};
 ///////////////////////////////////////////////////////////////////////////////
 
 fn test_perft(fen: &str, expected: &[u64]) {
-    let board = Board::from_fen(fen).unwrap();
+    let mut board = Board::from_fen(fen).unwrap();
     for (i, expected) in expected.iter().copied().enumerate() {
         assert_eq!(board.perft(i + 1), expected);
     }

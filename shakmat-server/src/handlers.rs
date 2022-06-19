@@ -63,8 +63,8 @@ pub fn make_move(state: &StateMutex, game_id: &str, r#move: Json<MoveData>) -> A
 pub fn get_computer_move(state: &StateMutex, engine: &State<ShakmatEngine>, game_id: &str,
 depth: Option<u8>, move_ms: Option<u64>, total_ms: Option<u64>) -> ApiResponse {
     let state_lock = state.inner().lock().unwrap();
-    let board = match state_lock.get_board(game_id) {
-        Some(board) => *board,
+    let mut board = match state_lock.get_board(game_id) {
+        Some(board) => board.clone(),
         None => return ApiResponse::not_found("Game not found".to_owned()),
     };
     
@@ -85,7 +85,7 @@ depth: Option<u8>, move_ms: Option<u64>, total_ms: Option<u64>) -> ApiResponse {
         max_depth: depth,
     };
 
-    let search_result = engine.inner().find_best_move(&board, &past_positions, search_options);
+    let search_result = engine.inner().find_best_move(&mut board, &past_positions, search_options);
 
     match search_result.best_move {
         Some(_) => ApiResponse::move_suggestion(&search_result),

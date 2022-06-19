@@ -87,7 +87,7 @@ impl Search {
 
     // Wrapper function over the negamax algorithm, returning the best move
     // along with the associated score
-    pub fn find_best(&mut self, board: &Board) -> SearchResult {
+    pub fn find_best(&mut self, board: &mut Board) -> SearchResult {
         // If there is only one legal move, return it immediately
         let legal_moves = board.legal_moves();
         if legal_moves.len() == 1 {
@@ -188,7 +188,7 @@ impl Search {
 
     fn negamax(
         &mut self,
-        board: &Board, 
+        board: &mut Board, 
         mut depth_remaining: u8, 
         current_depth: u8, 
         (mut alpha, mut beta): Bounds,
@@ -196,7 +196,7 @@ impl Search {
         pv_line: &mut PVLine,
     ) -> Evaluation {
         self.node_count += 1;
-
+ 
         // If, for some reason, we go past the limit depth, return the static
         // evaluation value right away.
         if current_depth >= LIMIT_DEPTH as u8 {
@@ -274,8 +274,9 @@ impl Search {
         let is_pv = beta - alpha != 1;
 
         if can_null && !is_check && depth_remaining > NULL_MOVE_REDUCTION && !board.only_pawns_or_endgame() && !is_pv {
-            let new_board = board.make_null_move();
-            let score = -self.negamax(&new_board, depth_remaining - NULL_MOVE_REDUCTION - 1, current_depth + 1, (-beta, -beta + 1), false, &mut next_pv_line);
+            board.make_null_move();
+            let score = -self.negamax(board, depth_remaining - NULL_MOVE_REDUCTION - 1, current_depth + 1, (-beta, -beta + 1), false, &mut next_pv_line);
+            board.unmake_null_move();
 
             // If the opponent can't improve their position, return beta
             if score >= beta && !score.is_positive_mate() {
@@ -314,20 +315,21 @@ impl Search {
         let mut analyzed_quiets = Vec::with_capacity(64);
 
         for RatedMove{mv, ..} in rated_moves {
-            let next_board = board.make_move(&mv);
+            board.make_move(&mv);
 
             // This is a pseudo-legal move, we must make sure that the side moving is not in check.
             // Castling moves are always legal since their legality is checked in move generation,
             // for anything else, we must check that the moving side isn't in check
-            if matches!(mv, Move::Normal{..} | Move::PawnPromotion{..}) && next_board.is_check(color_moving) {
+            if matches!(mv, Move::Normal{..} | Move::PawnPromotion{..}) && board.is_check(color_moving) {
+                board.unmake_move(&mv); // Always remember to unmake the move before skipping it!
                 continue;
             }
 
             // Some information about this move
             let is_capture = mv.is_capture(board);
             let cap_or_prom = is_capture || matches!(mv, Move::PawnPromotion{..});
-            let gives_check = next_board.is_check(next_board.turn_color());
-            let is_pawn_move = mv.piece_moving(board) == Pawn;
+            let gives_check = board.is_check(board.turn_color());
+            let is_pawn_move = mv.piece_moving_after(board) == Pawn;
             let is_tactical = is_check || gives_check || cap_or_prom || is_pawn_move || self.is_killer(&mv, current_depth);
 
             // Late move pruning: in non-PV nodes, skip late quiet moves since they are less
@@ -344,6 +346,7 @@ impl Search {
             // use this pruning, and the current move is not a tactical one,
             // skip this move entirely unless its the first one (PV)
             if do_futility && analyzed_moves != 0 && !is_tactical {
+                board.unmake_move(&mv); // Always remember to unmake the move before skipping it!
                 continue;
             }
 
@@ -378,26 +381,27 @@ impl Search {
 
             // If we are reducing, try to search with reduced depth first
             if red != 0 {
-                score = -self.negamax(&next_board, depth_remaining - red, current_depth + 1, ((-alpha)-1, -alpha), true, &mut next_pv_line);
+                score = -self.negamax(board, depth_remaining - red, current_depth + 1, ((-alpha)-1, -alpha), true, &mut next_pv_line);
                 // If the reduced search fails low, we don't have to search using full depth
                 do_full_depth = score > alpha;
             }
 
             // Since the moves are ordered, only evaluate the first move with a full window
             if analyzed_moves == 0 {
-                score = -self.negamax(&next_board, depth_remaining - 1, current_depth + 1, (-beta, -alpha), true, &mut next_pv_line);
+                score = -self.negamax(board, depth_remaining - 1, current_depth + 1, (-beta, -alpha), true, &mut next_pv_line);
             } else if do_full_depth {
                 // Try a minimal window first. If the value falls under [alpha, beta] then use the standard window
-                score = -self.negamax(&next_board, depth_remaining - 1, current_depth + 1, ((-alpha)-1, -alpha), true, &mut next_pv_line);
+                score = -self.negamax(board, depth_remaining - 1, current_depth + 1, ((-alpha)-1, -alpha), true, &mut next_pv_line);
 
                 if score > alpha && score < beta {
                     // Do a full evaluation since the position was not significantly worsened
-                    score = -self.negamax(&next_board, depth_remaining - 1, current_depth + 1, (-beta, -alpha), true, &mut next_pv_line);
+                    score = -self.negamax(board, depth_remaining - 1, current_depth + 1, (-beta, -alpha), true, &mut next_pv_line);
                 }
             };
 
             // We're done calling recursively, remove the current state from the history
             self.past_positions.pop();
+            board.unmake_move(&mv);
             analyzed_moves += 1;
 
             // Update alpha, beta and the scores
@@ -466,7 +470,7 @@ impl Search {
     // a piece is hanging and can be easily captured in the next move.
     fn quiesence_search(
         &mut self, 
-        board: &Board, 
+        board: &mut Board, 
         current_depth: u8, 
         mut alpha: Evaluation, 
         beta: Evaluation,
@@ -501,6 +505,7 @@ impl Search {
             alpha = static_score;
         }
 
+        let color_moving = board.turn_color();
         let mut next_pv_line = PVLine::new();
 
         // Only consider moves that are captures or pawn promotions
@@ -510,12 +515,14 @@ impl Search {
             // As in the normal search, we are using pseudolegal moves, so we must make sure that
             // the moving side is not in check. Castling moves are not generated now so we
             // don't have to worry about them
-            let next_board = board.make_move(&mv);
-            if next_board.is_check(board.turn_color()) {
+            board.make_move(&mv);
+            if board.is_check(color_moving) {
+                board.unmake_move(&mv); // Always remember to unmake the move before skipping it!
                 continue;
             }
 
-            let next_score = -self.quiesence_search(&next_board, current_depth + 1, -beta, -alpha, &mut next_pv_line);
+            let next_score = -self.quiesence_search(board, current_depth + 1, -beta, -alpha, &mut next_pv_line);
+            board.unmake_move(&mv);
 
             if next_score >= beta {
                 return beta;

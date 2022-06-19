@@ -425,7 +425,7 @@ impl Sub<EvalScore> for Evaluation {
     type Output = Self;
 
     fn sub(self, rhs: EvalScore) -> Self::Output {
-        Self::new(self.score - rhs)
+        Self::new(self.score.wrapping_sub(rhs))
     }
 }
 
@@ -441,7 +441,7 @@ impl Sub<Self> for Evaluation {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Self::new(self.score - rhs.score)
+        Self::new(self.score.wrapping_sub(rhs.score))
     }
 }
 

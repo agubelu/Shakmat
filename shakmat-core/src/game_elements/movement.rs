@@ -7,7 +7,7 @@ use crate::board::{Board, BitBoard};
 // Avoid clashes between the core Result and the formatter Result
 type FmtResult = std::fmt::Result;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Move {
     Normal { from: u8, to: u8 },
     PawnPromotion { from: u8, to: u8, promote_to: PieceType },
@@ -37,6 +37,14 @@ impl Move {
         }
     }
 
+    pub fn is_castle(&self) -> bool {
+        *self == Self::LongCastle || *self == Self::ShortCastle
+    }
+
+    pub fn is_promotion(&self) -> bool {
+        matches!(self, Self::PawnPromotion{..})
+    }
+
     pub fn is_capture(&self, board: &Board) -> bool {
         // A move is a capture if the destination square is occupied,
         // of if it's an en passant pawn capture
@@ -48,9 +56,20 @@ impl Move {
         }
     }
 
-    pub fn piece_moving(&self, board: &Board) -> PieceType {
+    // Methods to know which piece is moving for the current move and
+    // the provided board, both before making the move and
+    // after having made it
+    pub fn piece_moving_before(&self, board: &Board) -> PieceType {
         match self {
             Self::Normal {from, ..} => board.piece_on(*from).unwrap(),
+            Self::PawnPromotion {..} => Pawn,
+            _ => King // Castling
+        }
+    }
+
+    pub fn piece_moving_after(&self, board: &Board) -> PieceType {
+        match self {
+            Self::Normal {to, ..} => board.piece_on(*to).unwrap(),
             Self::PawnPromotion {..} => Pawn,
             _ => King // Castling
         }

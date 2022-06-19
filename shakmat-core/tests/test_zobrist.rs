@@ -12,7 +12,7 @@ fn run_test(moves: &[&str], fen: &str, zobrist_hex: &str) {
     let mut board = Board::default();
 
     for mv in moves {
-        board = board.make_move(&Move::from_notation(mv).unwrap());
+        board.make_move(&Move::from_notation(mv).unwrap());
     }
 
     let board_fen = Board::from_fen(fen).unwrap();

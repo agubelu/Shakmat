@@ -15,6 +15,17 @@ const WHITE_LONG_CASTLE_CHECKS: BitBoard = BitBoard::new(56);
 const BLACK_SHORT_CASTLE_CHECKS: BitBoard = BitBoard::new(0x0E00000000000000);
 const BLACK_LONG_CASTLE_CHECKS: BitBoard = BitBoard::new(0x3800000000000000);
 
+// Bitboards with the from and to positions for the kings and rooks for castling
+pub const WHITE_KING_SHORT_CASTLE: BitBoard = BitBoard::new(0x000000000000000A);
+pub const WHITE_ROOK_SHORT_CASTLE: BitBoard = BitBoard::new(0x0000000000000005);
+pub const WHITE_KING_LONG_CASTLE: BitBoard = BitBoard::new(0x0000000000000028);
+pub const WHITE_ROOK_LONG_CASTLE: BitBoard = BitBoard::new(0x0000000000000090);
+pub const BLACK_KING_SHORT_CASTLE: BitBoard = BitBoard::new(0x0A00000000000000);
+pub const BLACK_ROOK_SHORT_CASTLE: BitBoard = BitBoard::new(0x0500000000000000);
+pub const BLACK_KING_LONG_CASTLE: BitBoard = BitBoard::new(0x2800000000000000);
+pub const BLACK_ROOK_LONG_CASTLE: BitBoard = BitBoard::new(0x9000000000000000);
+
+// Some useful masks for pawn movements
 const THIRD_RANK_MASK: BitBoard = BitBoard::new(0x0000000000FF0000);
 const SIXTH_RANK_MASK: BitBoard = BitBoard::new(0x0000FF0000000000);
 const WHITE_PROMOTION_RANK: BitBoard = BitBoard::new(0xFF00000000000000);

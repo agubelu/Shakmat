@@ -18,7 +18,7 @@ impl ShakmatEngine {
         Self { config, book: OpeningBook::load() }
     }
 
-    pub fn find_best_move(&self, board: &Board, past_positions: &[u64], options: SearchOptions) -> SearchResult {
+    pub fn find_best_move(&self, board: &mut Board, past_positions: &[u64], options: SearchOptions) -> SearchResult {
         // Query our opening book to get a move for this position
         if let Some(mv) = self.book.get_move(board, self.config.only_best_book_moves) {
             // We know this opening, play the move from the book

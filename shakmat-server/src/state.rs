@@ -55,7 +55,7 @@ impl ServerState {
     // It is assumed that the key always exists, since it is needed to get
     // the game data in the first place
     pub fn make_move(&mut self, key: &str, movement: Move) -> Result<(), String> {
-        let game = match self.games.get(key) {
+        let game = match self.games.get_mut(key) {
             Some(g) => g,
             None => return Err("Game not found".to_owned()),
         };
@@ -66,12 +66,13 @@ impl ServerState {
         }
 
         // If it is, apply the new move and replace the current board
-        let new_board = game.board.make_move(&movement);
-        let mut game_state = self.get_game_mut(key);
-        game_state.board = new_board;
-        game_state.previous_positions.push(new_board.zobrist_key());
+        game.board.make_move(&movement);
+        let new_zobrist = game.board.zobrist_key();
+        println!("{}", game.board);
 
-        println!("{}", new_board);
+        let game_state = self.get_game_mut(key);
+        game_state.previous_positions.push(new_zobrist);
+
         Ok(())
     }
 

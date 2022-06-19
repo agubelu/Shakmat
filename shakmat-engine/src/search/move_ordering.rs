@@ -43,7 +43,7 @@ fn rate_move(mv: Move, pv_move: Option<Move>, board: &Board, killers: &[Move], h
     //     // Note: the "if" applies to both patterns, not just the PawnPromotion move
     //     LAST_RECAPTURE
     } else if let Some(captured) = mv.piece_captured(board) {
-        CAPTURE_BASE_VAL + value_of_capture(captured) - value_of_attacker(mv.piece_moving(board))
+        CAPTURE_BASE_VAL + value_of_capture(captured) - value_of_attacker(mv.piece_moving_before(board))
     }  else if killers[0] == mv {
         PRIMARY_KILLER
     } else if killers[1] == mv {
