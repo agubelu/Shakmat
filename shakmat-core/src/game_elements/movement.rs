@@ -97,14 +97,14 @@ impl Display for Move {
             Self::Normal { from, to, .. } => write!(f, "{}{}", Square::new(*from), Square::new(*to)),
             Self::ShortCastle => write!(f, "O-O"),
             Self::LongCastle => write!(f, "O-O-O"),
-            Self::PawnPromotion { from, to, promote_to } => write!(f, "{}{}={}", 
+            Self::PawnPromotion { from, to, promote_to } => write!(f, "{}{}{}", 
                 Square::new(*from), 
                 Square::new(*to), 
                 match promote_to {
-                    PieceType::Queen => "Q",
-                    PieceType::Rook => "R",
-                    PieceType::Bishop => "B",
-                    PieceType::Knight => "N",
+                    PieceType::Queen => "q",
+                    PieceType::Rook => "r",
+                    PieceType::Bishop => "b",
+                    PieceType::Knight => "n",
                     _ => unreachable!()
                 }),
         }
