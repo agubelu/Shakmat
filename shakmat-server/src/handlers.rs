@@ -12,7 +12,14 @@ use crate::state::ServerState;
 type StateMutex = State<Mutex<ServerState>>;
 
 pub fn get_routes() -> Vec<Route> {
-    routes![create_game, get_turn_info, make_move, get_computer_move, delete_game]
+    routes![create_game, get_turn_info, make_move, get_computer_move, delete_game, _all_options]
+}
+
+// Catches all OPTION requests in order to get the CORS related Fairing triggered.
+// Thanks to this absolute hero: https://stackoverflow.com/a/72702246/5604339
+#[options("/<_..>")]
+fn _all_options() {
+    /* Intentionally left empty */
 }
 
 #[post("/games", data = "<fen>")]
