@@ -61,7 +61,8 @@ pub struct TurnInfo {
     turn_number: u16,
     color: Color,
     moves: Vec<Move>,
-    in_check: bool
+    in_check: bool,
+    fen: String,
 }
 
 impl TurnInfo {
@@ -76,6 +77,7 @@ impl TurnInfo {
             turn_number: board.turn_number(),
             color: board.turn_color(),
             in_check: board.is_check(board.turn_color()),
+            fen: board.fen(),
             moves
         }
     }

@@ -57,6 +57,10 @@ impl CastlingRights {
         }
     }
 
+    pub fn has_no_rights(&self) -> bool {
+        self.rights == 0
+    }
+
     pub fn can_castle_kingside(&self, color: Color) -> bool {
         match color {
             Color::White => self.rights & 0b00001000 != 0,

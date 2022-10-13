@@ -23,6 +23,7 @@ impl PieceType {
             King => 5,
         }
     }
+
     // For zobrist keys
     pub const fn to_zobrist_index(&self) -> usize {
         match self {
@@ -34,6 +35,24 @@ impl PieceType {
             King => 10,
         }
     }
+
+    pub fn as_fen_char(&self, color: Color) -> char {
+        match (color, self) {
+            (White, Pawn) => 'P',
+            (White, Knight) => 'N',
+            (White, Bishop) => 'B',
+            (White, Rook) => 'R',
+            (White, Queen) => 'Q',
+            (White, King) => 'K',
+            (Black, Pawn) => 'p',
+            (Black, Knight) => 'n',
+            (Black, Bishop) => 'b',
+            (Black, Rook) => 'r',
+            (Black, Queen) => 'q',
+            (Black, King) => 'k',
+        }
+    }
+
     pub fn as_char(&self, color: Color) -> char {
         match (color, self) {
             (White, Pawn) => '♙',

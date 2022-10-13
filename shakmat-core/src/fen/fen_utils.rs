@@ -1,7 +1,7 @@
 use std::result::Result;
 
 use crate::PieceType;
-use crate::board::{BitBoard, Pieces};
+use crate::board::{Board, BitBoard, Pieces};
 use crate::game_elements::{Color::*, PieceType::*, CastlingRights, Color, Square};
 
 pub const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -60,6 +60,59 @@ pub fn read_fen(fen: &str) -> Result<FENInfo, String> {
     Ok(fen_info)
 }
 
+pub fn create_fen(board: &Board) -> String {
+    let pos = (0..8).rev().map(|rank| get_rank_fen(board, rank)).collect::<Vec<_>>().join("/");
+    let turn = if board.turn_color() == White { "w" } else { "b" };
+    let castling = save_castling(board.castling_info());
+    let ep = if board.ep_square().is_empty() {
+        "-".to_owned()
+    } else {
+        Square::new(board.ep_square().first_piece_index()).to_string()
+    };
+
+    let fifty_rule = board.fifty_move_rule_counter().to_string();
+    let turn_count = board.turn_number().to_string();
+
+    format!("{} {} {} {} {} {}", pos, turn, castling, ep, fifty_rule, turn_count)
+}
+
+// Creates a FEN representation of the given rank for a board
+fn get_rank_fen(board: &Board, rank: usize) -> String {
+    let mut res = String::new();
+    let mut empty = 0;
+
+    // Traverse the rank left to right and create the string
+    for i in (0..8).rev() {
+        let square = 8 * rank + i;
+
+        if let Some(piece) = board.piece_on(square as u8) {
+            let mask = 1 << square;
+            let color = if (board.get_color_bitboard(White) & mask).is_empty() {
+                Black
+            } else {
+                White
+            };
+
+            // Write all previous spaces and the current piece
+            if empty != 0 {
+                res.push_str(&empty.to_string());
+                empty = 0;
+            }
+            res.push(piece.as_fen_char(color));
+        } else {
+            // Empty space, increment the counter
+            empty += 1;
+        }
+    }
+
+    // Finally, as per FEN definition, write the trailing empty squares
+    if empty != 0 {
+        res.push_str(&empty.to_string());
+    }
+
+    res
+}
+
 fn load_board(board_info: &str, fen_info: &mut FENInfo) -> Result<(), String> {
     let rows: Vec<&str> = board_info.split('/').collect();
 
@@ -71,7 +124,7 @@ fn load_board(board_info: &str, fen_info: &mut FENInfo) -> Result<(), String> {
         let rank = 7 - row_i;
         let mut file = 0;
         for ch in row_info.chars() {
-            let is_digit = ch.is_digit(10);
+            let is_digit = ch.is_ascii_digit();
 
             if is_digit {
                 file += ch.to_digit(10).unwrap() as usize;
@@ -131,4 +184,23 @@ fn load_castling(castling_info: &str, fen_info: &mut FENInfo) -> Result<(), Stri
     }
 
     Ok(())
+}
+
+fn save_castling(castling_info: &CastlingRights) -> String {
+    if castling_info.has_no_rights() {
+        return "-".to_owned();
+    }
+
+    let mut res = String::new();
+    for color in [White, Black] {
+        if castling_info.can_castle_kingside(color) {
+            res.push(if color == White {'K'} else {'k'});
+        }
+
+        if castling_info.can_castle_queenside(color) {
+            res.push(if color == White {'Q'} else {'q'});
+        }
+    }
+
+    res
 }

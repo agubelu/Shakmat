@@ -4,7 +4,7 @@ use rayon::prelude::*;
 
 use crate::game_elements::{CastlingRights, Color, Color::*, PieceType, PieceType::*, Move, Square};
 use crate::board::BitBoard;
-use crate::fen::{read_fen, DEFAULT_FEN};
+use crate::fen::{read_fen, DEFAULT_FEN, fen_utils};
 use crate::zobrist;
 use crate::magic::EP_ATTACKS;
 use super::movegen;
@@ -264,6 +264,10 @@ impl Board {
 
     pub fn last_moved(&self) -> u8 {
         self.last_moved
+    }
+
+    pub fn fen(&self) -> String {
+        fen_utils::create_fen(self)
     }
 
     pub fn perft(&self, depth: usize) -> u64 {
