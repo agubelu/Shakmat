@@ -1,5 +1,9 @@
 #[macro_use] extern crate rocket;
+
+use rocket::{Request, Response};
+use rocket::http::Header;
 use rocket::config::Config;
+use rocket::fairing::{Fairing, Info, Kind};
 
 mod handlers;
 mod state;
@@ -11,6 +15,10 @@ use std::sync::Mutex;
 use shakmat_engine::ShakmatEngine;
 
 const DEFAULT_PORT: u16 = 8000;
+
+// Aux struct to allow requests from any origin, in order to be
+// able to use browser-based front-ends
+pub struct CORS;
 
 #[launch]
 fn run() -> _ {
@@ -26,4 +34,23 @@ fn run() -> _ {
         .mount("/", handlers::get_routes())
         .manage(Mutex::from(ServerState::new()))
         .manage(ShakmatEngine::default())
+        .attach(CORS)
+}
+
+
+#[rocket::async_trait]
+impl Fairing for CORS {
+    fn info(&self) -> Info {
+        Info {
+            name: "Add CORS headers to responses",
+            kind: Kind::Response
+        }
+    }
+
+    async fn on_response<'r>(&self, _request: &'r Request<'_>, response: &mut Response<'r>) {
+        response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
+        response.set_header(Header::new("Access-Control-Allow-Methods", "GET, POST, DELETE"));
+        response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
+        response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
+    }
 }
