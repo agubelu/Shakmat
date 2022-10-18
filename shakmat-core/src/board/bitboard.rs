@@ -3,6 +3,8 @@ use std::ops::{BitAnd, BitOr, BitOrAssign, BitAndAssign, BitXorAssign, Not, Shl,
 use std::cmp::PartialEq;
 
 #[derive(Copy, Clone, PartialEq, Eq, Default)]
+// Each bit is a position on the board
+// The least significant bit is h1, and the most significant bit is a8
 pub struct BitBoard {
     bb: u64
 }

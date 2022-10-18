@@ -1,7 +1,7 @@
 #[macro_use] extern crate rocket;
 
 use rocket::{Request, Response};
-use rocket::http::{Header, ContentType, Method};
+use rocket::http::Header;
 use rocket::config::Config;
 use rocket::fairing::{Fairing, Info, Kind};
 
@@ -12,7 +12,6 @@ mod messages;
 use state::ServerState;
 use std::env::args;
 use std::sync::Mutex;
-use std::io::Cursor;
 use shakmat_engine::ShakmatEngine;
 
 const DEFAULT_PORT: u16 = 8000;
@@ -34,7 +33,7 @@ fn run() -> _ {
         .configure(config)
         .mount("/", handlers::get_routes())
         .manage(Mutex::from(ServerState::new()))
-        .manage(ShakmatEngine::default())
+        .manage(Mutex::from(ShakmatEngine::default()))
         .attach(CORS)
 }
 

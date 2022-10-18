@@ -2,28 +2,28 @@ use std::sync::Mutex;
 use std::mem::drop;
 
 use shakmat_core::Move;
-use shakmat_engine::{ShakmatEngine, SearchOptions};
+use shakmat_engine::{ShakmatEngine, SearchOptions, EngineConfig};
 use rocket::serde::json::Json;
 use rocket::{Route, State};
 
-use crate::messages::{ApiResponse, FenData, MoveData};
+use crate::messages::{ApiResponse, FenData, MoveData, ConfigOptions};
 use crate::state::ServerState;
 
-type StateMutex = State<Mutex<ServerState>>;
+type StateMutex<T> = State<Mutex<T>>;
+type GamesState = StateMutex<ServerState>;
+type EngineState = StateMutex<ShakmatEngine>;
 
 pub fn get_routes() -> Vec<Route> {
-    routes![create_game, get_turn_info, make_move, get_computer_move, delete_game, _all_options]
+    routes![create_game, get_turn_info, make_move, get_computer_move, delete_game, config_engine, _all_options]
 }
 
 // Catches all OPTION requests in order to get the CORS related Fairing triggered.
 // Thanks to this absolute hero: https://stackoverflow.com/a/72702246/5604339
 #[options("/<_..>")]
-fn _all_options() {
-    /* Intentionally left empty */
-}
+fn _all_options() { /* Intentionally left empty */ }
 
 #[post("/games", data = "<fen>")]
-pub fn create_game(state: &StateMutex, fen: Option<Json<FenData>>) -> ApiResponse {
+pub fn create_game(state: &GamesState, fen: Option<Json<FenData>>) -> ApiResponse {
     let mut state_lock = state.inner().lock().unwrap();
 
     let key = if let Some(fen_data) = fen {
@@ -44,7 +44,7 @@ pub fn create_game(state: &StateMutex, fen: Option<Json<FenData>>) -> ApiRespons
 }
 
 #[get("/games/<game_id>")]
-pub fn get_turn_info(state: &StateMutex, game_id: &str) -> ApiResponse {
+pub fn get_turn_info(state: &GamesState, game_id: &str) -> ApiResponse {
     let state_lock = state.inner().lock().unwrap();
     match state_lock.get_turn_info(game_id) {
         Some(turn_info) => ApiResponse::turn_info(turn_info),
@@ -53,7 +53,7 @@ pub fn get_turn_info(state: &StateMutex, game_id: &str) -> ApiResponse {
 }
 
 #[post("/games/<game_id>/move", data = "<move>")]
-pub fn make_move(state: &StateMutex, game_id: &str, r#move: Json<MoveData>) -> ApiResponse {
+pub fn make_move(state: &GamesState, game_id: &str, r#move: Json<MoveData>) -> ApiResponse {
     let mut state_lock = state.inner().lock().unwrap();
     let mv = match Move::from_notation(&r#move.r#move) {
         Ok(m) => m,
@@ -67,7 +67,7 @@ pub fn make_move(state: &StateMutex, game_id: &str, r#move: Json<MoveData>) -> A
 }
 
 #[get("/games/<game_id>/move_suggestion?<depth>&<move_ms>&<total_ms>")]
-pub fn get_computer_move(state: &StateMutex, engine: &State<ShakmatEngine>, game_id: &str,
+pub fn get_computer_move(state: &GamesState, engine: &EngineState, game_id: &str,
 depth: Option<u8>, move_ms: Option<u64>, total_ms: Option<u64>) -> ApiResponse {
     let state_lock = state.inner().lock().unwrap();
     let board = match state_lock.get_board(game_id) {
@@ -92,7 +92,8 @@ depth: Option<u8>, move_ms: Option<u64>, total_ms: Option<u64>) -> ApiResponse {
         max_depth: depth,
     };
 
-    let search_result = engine.inner().find_best_move(&board, &past_positions, search_options);
+    let engine_lock = engine.inner().lock().unwrap();
+    let search_result = engine_lock.find_best_move(&board, &past_positions, search_options);
 
     match search_result.best_move {
         Some(_) => ApiResponse::move_suggestion(&search_result),
@@ -101,10 +102,23 @@ depth: Option<u8>, move_ms: Option<u64>, total_ms: Option<u64>) -> ApiResponse {
 }
 
 #[delete("/games/<game_id>")]
-pub fn delete_game(state: &StateMutex, game_id: &str) -> ApiResponse {
+pub fn delete_game(state: &GamesState, game_id: &str) -> ApiResponse {
     let mut state_lock = state.inner().lock().unwrap();
     match state_lock.delete_game(game_id) {
-        Ok(()) => ApiResponse::deleted(),
+        Ok(()) => ApiResponse::no_content(),
         Err(msg) => ApiResponse::not_found(msg),
     }
+}
+
+#[post("/config", data = "<config>")]
+pub fn config_engine(engine: &EngineState, config: Json<ConfigOptions>) -> ApiResponse {
+    let mut state_lock = engine.inner().lock().unwrap();
+
+    let config_engine = EngineConfig {
+        use_opening_book: config.use_book,
+        only_best_book_moves: config.always_top_line,
+    };
+
+    state_lock.update_config(config_engine);
+    ApiResponse::no_content()
 }

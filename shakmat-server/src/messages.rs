@@ -49,7 +49,7 @@ impl ApiResponse {
         }) }
     }
 
-    pub fn deleted() -> Self {
+    pub fn no_content() -> Self {
         Self { status: Status::NoContent, payload: json!({}) }
     }
 }
@@ -96,6 +96,11 @@ pub struct MoveData {
     pub r#move: String,
 }
 
-///////////////////////////////////////////////////////////////////////////////
+#[derive(Deserialize, Serialize)]
+pub struct ConfigOptions {
+    pub use_book: bool,
+    pub always_top_line: bool
+}
 
+///////////////////////////////////////////////////////////////////////////////
 
