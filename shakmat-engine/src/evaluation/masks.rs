@@ -16,10 +16,6 @@ pub fn file(pos: u8) -> BitBoard {
     unsafe { FILES[pos as usize] }
 }
 
-pub fn rank(pos: u8) -> BitBoard {
-    unsafe { RANKS[pos as usize] }
-}
-
 pub fn white_passed_pawn(pos: u8) -> BitBoard {
     unsafe { WHITE_PASSED_PAWN[pos as usize] }
 }
