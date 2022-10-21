@@ -33,6 +33,9 @@ const LMR_MOVES: usize = 1;
 // Score margins for futility pruning
 const FUTILIY_MARGINS: [EvalScore; 6] = [0, 100, 160, 220, 280, 340];
 
+// Score margin for reverse futility pruning, scaling with depth
+const REV_FUTILITY_MARGIN: EvalScore = 80;
+
 // Typedef for the killer moves table
 pub type Killers = [[Move; MAX_KILLERS]; LIMIT_DEPTH + 2];
 
@@ -260,6 +263,23 @@ impl Search {
             return self.quiesence_search(board, current_depth, alpha, beta, pv_line);
         }
 
+        let is_pv = beta - alpha != 1;
+
+        // Reverse futility pruning: if the current score exceeds what the
+        // opponent can already guarantee, even if we substract a margin from it,
+        // we can assume that they will not allow this position and prune it.
+        // TO-DO: probably add a depth condition to avoid calling the evaluation
+        // in early depths where the margin is huge and see how that works
+        if !is_pv && !is_check && !beta.is_mate() {
+            let score = evaluate_position(board);
+            let margin = depth_remaining as EvalScore * REV_FUTILITY_MARGIN;
+            let reduced = score - margin;
+
+            if reduced > beta {
+                return reduced;
+            }
+        }
+
         // PV line for the recursive calls
         let mut next_pv_line = PVLine::new();
 
@@ -271,7 +291,6 @@ impl Search {
         // current side to move is in check (it would be illegal), or in late
         // game positions where not moving is actually the best move. Also, don't
         // do it in positions close to the horizon.
-        let is_pv = beta - alpha != 1;
 
         if can_null && !is_check && depth_remaining > NULL_MOVE_REDUCTION && !board.only_pawns_or_endgame() && !is_pv {
             let new_board = board.make_null_move();
