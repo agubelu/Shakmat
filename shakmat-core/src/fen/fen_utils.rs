@@ -42,7 +42,7 @@ pub fn read_fen(fen: &str) -> Result<FENInfo, String> {
     fen_info.turn = match fen_parts[1] {
         "w" => White,
         "b" => Black,
-         x => return Err(format!("The turn '{}' provided in the FEN is invalid", x)),
+         x => return Err(format!("The turn '{x}' provided in the FEN is invalid")),
     };
 
     // Load castling rights
@@ -73,7 +73,7 @@ pub fn create_fen(board: &Board) -> String {
     let fifty_rule = board.fifty_move_rule_counter().to_string();
     let turn_count = board.turn_number().to_string();
 
-    format!("{} {} {} {} {} {}", pos, turn, castling, ep, fifty_rule, turn_count)
+    format!("{pos} {turn} {castling} {ep} {fifty_rule} {turn_count}")
 }
 
 // Creates a FEN representation of the given rank for a board
@@ -144,7 +144,7 @@ fn load_board(board_info: &str, fen_info: &mut FENInfo) -> Result<(), String> {
                     'K' => (White, King),
                     'P' => (White, Pawn),
                      _  if is_digit => continue, // Already handled
-                     _  => return Err(format!("Invalid character '{}' while reading the board state from FEN", ch))
+                     _  => return Err(format!("Invalid character '{ch}' while reading the board state from FEN"))
                 };
 
                 let pieces = match color {
@@ -179,7 +179,7 @@ fn load_castling(castling_info: &str, fen_info: &mut FENInfo) -> Result<(), Stri
             'k' => fen_info.castling_rights.update_kingside(Black, true),
             'q' => fen_info.castling_rights.update_queenside(Black, true),
             '-' => {},
-             x  => return Err(format!("Invalid chracter '{}' while reading castling info from FEN", x))
+             x  => return Err(format!("Invalid chracter '{x}' while reading castling info from FEN"))
         }
     }
 

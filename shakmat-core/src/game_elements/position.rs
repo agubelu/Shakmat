@@ -33,9 +33,9 @@ impl Square {
 
     pub fn from_file_rank(file: u8, rank: u8) -> Result<Self, String> {
         if file > 7 {
-            Err(format!("Invalid file: {}", file))
+            Err(format!("Invalid file: {file}"))
         } else if rank > 7 {
-            Err(format!("Invalid rank: {}", file))
+            Err(format!("Invalid rank: {file}"))
         } else {
             Ok(Self::new(rank * 8 + (7 - file)))
         }
@@ -45,7 +45,7 @@ impl Square {
         let pos_chars: Vec<char> = pos.chars().collect();
 
         if pos_chars.len() != 2 {
-            return Err(format!("Invalid position: {}", pos));
+            return Err(format!("Invalid position: {pos}"));
         }
 
         let file = match pos_chars[0] {
@@ -57,7 +57,7 @@ impl Square {
             'f' | 'F' => 5,
             'g' | 'G' => 6,
             'h' | 'H' => 7,
-             x  => return Err(format!("Invalid file: {}", x)),
+             x  => return Err(format!("Invalid file: {x}")),
         };
 
         let rank = match pos_chars[1] {
@@ -69,7 +69,7 @@ impl Square {
             '6' => 5,
             '7' => 6,
             '8' => 7,
-             x  => return Err(format!("Invalid rank: {}", x)),
+             x  => return Err(format!("Invalid rank: {x}")),
         };
 
         Ok(Self::from_file_rank(file, rank).unwrap())
@@ -91,6 +91,6 @@ impl Display for Square {
         };
 
         let rank = self.rank() + 1;
-        format!("{}{}", file, rank).fmt(f)
+        format!("{file}{rank}").fmt(f)
     }
 }

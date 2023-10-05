@@ -81,7 +81,7 @@ depth: Option<u8>, move_ms: Option<u64>, total_ms: Option<u64>) -> ApiResponse {
     let past_positions = state_lock.get_history(game_id).unwrap().clone();
 
     // We drop the lock here so the rather slow process of finding the best
-    // move doesn't block all othe requests
+    // move doesn't block all other requests
     drop(state_lock);
 
     // Create the search options struct with the data from the query string

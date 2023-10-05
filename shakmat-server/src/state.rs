@@ -71,7 +71,7 @@ impl ServerState {
         game_state.board = new_board;
         game_state.previous_positions.push(new_board.zobrist_key());
 
-        println!("{}", new_board);
+        println!("{new_board}");
         Ok(())
     }
 

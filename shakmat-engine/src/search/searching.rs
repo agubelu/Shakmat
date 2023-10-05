@@ -184,7 +184,7 @@ impl Search {
         // Print some stats before returning the result
         let total_micros = self.timer.elapsed_micros();
         let knps = self.node_count as u64 * 1_000 / total_micros;
-        println!("KNPS: {}, max. depth: {}", knps, depth);
+        println!("KNPS: {knps}, max. depth: {depth}");
 
         SearchResult { score, best_move }
     }

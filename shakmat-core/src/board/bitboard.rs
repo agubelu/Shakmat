@@ -81,9 +81,9 @@ impl Iterator for PieceIndexIter {
 impl Display for BitBoard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.bb.to_be_bytes().iter()
-            .map(|b| format!("{:#010b}", b))
+            .map(|b| format!("{b:#010b}"))
             .map(|bin| bin[2..].replace('0', "."))
-            .fold(String::new(), |a, b| format!("{}{}\n", a, b))
+            .fold(String::new(), |a, b| format!("{a}{b}\n"))
             .fmt(f)
     }
 }

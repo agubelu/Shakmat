@@ -554,7 +554,7 @@ impl Display for Board {
                 // The pieces position atribute will be deprecated and it 
                 // doesnt matter here
                 for square in piece_bb.piece_indices() {
-                    let bbsquare = Square::new(square as u8);
+                    let bbsquare = Square::new(square);
                     pieces[bbsquare.rank() as usize][bbsquare.file() as usize] = Some(piece_type.as_char(color));
                 }
             }
@@ -568,7 +568,7 @@ impl Display for Board {
             let pieces_line = (0..8)
                 .map(|file| match pieces[rank][file] {
                     None => "   ".to_string(),
-                    Some(c) => format!(" {} ", c)
+                    Some(c) => format!(" {c} ")
                 })
                 .collect::<Vec<String>>()
                 .join("│");
