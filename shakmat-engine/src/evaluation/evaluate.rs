@@ -79,25 +79,25 @@ pub fn evaluate_position(board: &Board) -> Evaluation {
 fn calc_piece_score(eval_data: &mut EvalData) {  
     // Pawns go first, since we use their evaluation to update the squares
     // controlled by the pawns of both sides
-    let (wp_mg, wp_eg) = eval_bitboard::<{White}, {Pawn}>(eval_data.white_pieces.pawns, eval_data);
-    let (bp_mg, bp_eg) = eval_bitboard::<{Black}, {Pawn}>(eval_data.black_pieces.pawns, eval_data);
+    let (wp_mg, wp_eg) = eval_bitboard(White, Pawn, eval_data.white_pieces.pawns, eval_data);
+    let (bp_mg, bp_eg) = eval_bitboard(Black, Pawn, eval_data.black_pieces.pawns, eval_data);
 
-    let (wb_mg, wb_eg) = eval_bitboard::<{White}, {Bishop}>(eval_data.white_pieces.bishops, eval_data);
-    let (bb_mg, bb_eg) = eval_bitboard::<{Black}, {Bishop}>(eval_data.black_pieces.bishops, eval_data);
+    let (wb_mg, wb_eg) = eval_bitboard(White, Bishop, eval_data.white_pieces.bishops, eval_data);
+    let (bb_mg, bb_eg) = eval_bitboard(Black, Bishop, eval_data.black_pieces.bishops, eval_data);
 
-    let (wn_mg, wn_eg) = eval_bitboard::<{White}, {Knight}>(eval_data.white_pieces.knights, eval_data);
-    let (bn_mg, bn_eg) = eval_bitboard::<{Black}, {Knight}>(eval_data.black_pieces.knights, eval_data);
+    let (wn_mg, wn_eg) = eval_bitboard(White, Knight, eval_data.white_pieces.knights, eval_data);
+    let (bn_mg, bn_eg) = eval_bitboard(Black, Knight, eval_data.black_pieces.knights, eval_data);
 
-    let (wr_mg, wr_eg) = eval_bitboard::<{White}, {Rook}>(eval_data.white_pieces.rooks, eval_data);
-    let (br_mg, br_eg) = eval_bitboard::<{Black}, {Rook}>(eval_data.black_pieces.rooks, eval_data);
+    let (wr_mg, wr_eg) = eval_bitboard(White, Rook, eval_data.white_pieces.rooks, eval_data);
+    let (br_mg, br_eg) = eval_bitboard(Black, Rook, eval_data.black_pieces.rooks, eval_data);
 
-    let (wq_mg, wq_eg) = eval_bitboard::<{White}, {Queen}>(eval_data.white_pieces.queens, eval_data);
-    let (bq_mg, bq_eg) = eval_bitboard::<{Black}, {Queen}>(eval_data.black_pieces.queens, eval_data);
+    let (wq_mg, wq_eg) = eval_bitboard(White, Queen, eval_data.white_pieces.queens, eval_data);
+    let (bq_mg, bq_eg) = eval_bitboard(Black, Queen, eval_data.black_pieces.queens, eval_data);
 
     // The king goes always last, because many king safety terms depend on 
     // the squares attacked by the previous pieces
-    let (wk_mg, wk_eg) = eval_bitboard::<{White}, {King}>(eval_data.white_pieces.king, eval_data);
-    let (bk_mg, bk_eg) = eval_bitboard::<{Black}, {King}>(eval_data.black_pieces.king, eval_data);
+    let (wk_mg, wk_eg) = eval_bitboard(White, King, eval_data.white_pieces.king, eval_data);
+    let (bk_mg, bk_eg) = eval_bitboard(Black, King, eval_data.black_pieces.king, eval_data);
 
     eval_data.score_midgame += wp_mg + wb_mg + wn_mg + wr_mg + wq_mg + wk_mg - bp_mg - bb_mg - bn_mg - br_mg - bq_mg - bk_mg;
     eval_data.score_endgame += wp_eg + wb_eg + wn_eg + wr_eg + wq_eg + wk_eg - bp_eg - bb_eg - bn_eg - br_eg - bq_eg - bk_eg;
@@ -143,17 +143,17 @@ fn calc_tempo(eval_data: &mut EvalData) {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Specialized functions for each piece type
-fn eval_pawn<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData) -> ScorePair {
+fn eval_pawn(color: Color, pos: u8, _: BitBoard, eval_data: &mut EvalData) -> ScorePair {
     let mut mg = PAWN_BASE_VALUE;
     let mut eg = PAWN_BASE_VALUE;
-    let them = (!COLOR).to_index();
+    let them = (!color).to_index();
 
     // Check the squares controlled by this pawn
-    let attack_bb = move_gen::pawn_attacks(pos as usize, COLOR);
+    let attack_bb = move_gen::pawn_attacks(pos as usize, color);
     eval_data.safe_mobility_area[them] &= !attack_bb;
 
     // Check if this is a passed pawn, and add bonuses acordingly
-    let (enemy_pawns, passed_mask, rel_rank) = match COLOR {
+    let (enemy_pawns, passed_mask, rel_rank) = match color {
         White => (eval_data.black_pieces.pawns, masks::white_passed_pawn(pos), pos / 8),
         Black => (eval_data.white_pieces.pawns, masks::black_passed_pawn(pos), 7 - (pos / 8)),
     };
@@ -166,7 +166,7 @@ fn eval_pawn<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData)
     }
 
     // Check if this pawn is connected to friendly pawns
-    let our_pawns = match COLOR {
+    let our_pawns = match color {
         Black => eval_data.black_pieces.pawns,
         White => eval_data.white_pieces.pawns,
     };
@@ -179,16 +179,16 @@ fn eval_pawn<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData)
     (mg, eg)
 }
 
-fn eval_bishop<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData) -> ScorePair {
+fn eval_bishop(color: Color, pos: u8, _: BitBoard, eval_data: &mut EvalData) -> ScorePair {
     let (mut mg, mut eg) = (BISHOP_BASE_VALUE, BISHOP_BASE_VALUE);
-    let us = COLOR.to_index();
+    let us = color.to_index();
 
     // Check if this bishop attacks the enemy king rings.
     // X-ray attacks: bishops can see through queens, so we remove them
     // when calculating bishop attacks to the enemy king
-    let our_queens_mask = !eval_data.board.get_pieces(COLOR).queens;
+    let our_queens_mask = !eval_data.board.get_pieces(color).queens;
     let attack_bb = move_gen::bishop_moves(pos as usize, eval_data.board.get_all_bitboard() & our_queens_mask);
-    add_attack_values::<COLOR>(attack_bb, eval_data, MINOR_PIECE_ATTACK);
+    add_attack_values(color, attack_bb, eval_data, MINOR_PIECE_ATTACK);
 
     // Calculate the mobility score for this bishop
     let moves = move_gen::bishop_moves(pos as usize, eval_data.board.get_all_bitboard());
@@ -201,13 +201,13 @@ fn eval_bishop<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalDat
     (mg, eg)
 }
 
-fn eval_knight<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData) -> ScorePair {
+fn eval_knight(color: Color, pos: u8, _: BitBoard, eval_data: &mut EvalData) -> ScorePair {
     let (mut mg, mut eg) = (KNIGHT_BASE_VALUE, KNIGHT_BASE_VALUE);
-    let us = COLOR.to_index();
+    let us = color.to_index();
 
     // Check if this knight attacks the enemy king ring.
     let attack_bb = move_gen::knight_moves(pos as usize);
-    add_attack_values::<COLOR>(attack_bb, eval_data, MINOR_PIECE_ATTACK);
+    add_attack_values(color, attack_bb, eval_data, MINOR_PIECE_ATTACK);
 
     // Calculate the mobility score for this knight
     let safe_moves = (attack_bb & eval_data.safe_mobility_area[us]).count() as usize;
@@ -219,17 +219,17 @@ fn eval_knight<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalDat
     (mg, eg)
 }
 
-fn eval_rook<const COLOR: Color>(pos: u8, bb: BitBoard, eval_data: &mut EvalData) -> ScorePair {
+fn eval_rook(color: Color, pos: u8, bb: BitBoard, eval_data: &mut EvalData) -> ScorePair {
     let mut mg = ROOK_BASE_VALUE;
     let mut eg = ROOK_BASE_VALUE;
-    let us = COLOR.to_index();
+    let us = color.to_index();
 
     // Check if this rook attacks the enemy king ring.
     // X-ray attacks: rooks can see through queens and other rooks, so we remove them
     // when calculating rook attacks to the enemy king
-    let our_pieces_mask = !(eval_data.board.get_pieces(COLOR).queens | bb);
+    let our_pieces_mask = !(eval_data.board.get_pieces(color).queens | bb);
     let attack_bb = move_gen::rook_moves(pos as usize, eval_data.board.get_all_bitboard() & our_pieces_mask);
-    add_attack_values::<COLOR>(attack_bb, eval_data, ROOK_ATTACK);
+    add_attack_values(color, attack_bb, eval_data, ROOK_ATTACK);
 
     // Calculate the mobility score for this rook
     let moves = move_gen::rook_moves(pos as usize, eval_data.board.get_all_bitboard());
@@ -240,7 +240,7 @@ fn eval_rook<const COLOR: Color>(pos: u8, bb: BitBoard, eval_data: &mut EvalData
     eg += eg_mob_bonus;
 
     let file = masks::file(pos);
-    let (friendly_pawns, enemy_pawns) = match COLOR {
+    let (friendly_pawns, enemy_pawns) = match color {
         White => (eval_data.white_pieces.pawns, eval_data.black_pieces.pawns),
         Black => (eval_data.black_pieces.pawns, eval_data.white_pieces.pawns),
     };
@@ -263,13 +263,13 @@ fn eval_rook<const COLOR: Color>(pos: u8, bb: BitBoard, eval_data: &mut EvalData
     (mg, eg)
 }
 
-fn eval_queen<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData) -> ScorePair {
+fn eval_queen(color: Color, pos: u8, _: BitBoard, eval_data: &mut EvalData) -> ScorePair {
     let (mut mg, mut eg) = (QUEEN_BASE_VALUE, QUEEN_BASE_VALUE);
-    let us = COLOR.to_index();
+    let us = color.to_index();
 
     // Check if this queen attacks the enemy king ring.
     let attack_bb = move_gen::queen_moves(pos as usize, eval_data.board.get_all_bitboard());
-    add_attack_values::<COLOR>(attack_bb, eval_data, QUEEN_ATTACK);
+    add_attack_values(color, attack_bb, eval_data, QUEEN_ATTACK);
 
     // Calculate the mobility score for this queen
     let safe_moves = (attack_bb & eval_data.safe_mobility_area[us]).count() as usize;
@@ -284,10 +284,10 @@ fn eval_queen<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData
 // There are approximately 99999 ways to evaluate a king's safety, so here we
 // follow the path of our lord and savior Stockfish and compute a safety value
 // by multiplying the number of attackers with the total weight of their attacks
-fn eval_king<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData) -> ScorePair {
+fn eval_king(color: Color, pos: u8, _: BitBoard, eval_data: &mut EvalData) -> ScorePair {
     let (mut mg, eg) = (0, 0);
-    let enemy = !COLOR;
-    let our_pawns = match COLOR {
+    let enemy = !color;
+    let our_pawns = match color {
         Black => eval_data.black_pieces.pawns,
         White => eval_data.white_pieces.pawns,
     };
@@ -296,7 +296,7 @@ fn eval_king<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData)
     let king_file_mask = masks::file(pos);
 
     // Calculate the threat score from the attacks from other pieces
-    let us = COLOR.to_index();
+    let us = color.to_index();
     let mut threat = eval_data.attacks_weight[us];
 
     // Assignate a penalty if the king is in a semi-open file
@@ -329,25 +329,25 @@ fn eval_king<const COLOR: Color>(pos: u8, _: BitBoard, eval_data: &mut EvalData)
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Aux function to evaluate a whole bitboard of pieces of a given type
-fn eval_bitboard<const PIECE_COLOR: Color, const PIECE_TYPE: PieceType>(bb: BitBoard, eval_data: &mut EvalData) -> ScorePair {
-    let eval_func = match PIECE_TYPE {
-        Pawn => eval_pawn::<PIECE_COLOR>,
-        Knight => eval_knight::<PIECE_COLOR>,
-        Bishop => eval_bishop::<PIECE_COLOR>,
-        Rook => eval_rook::<PIECE_COLOR>,
-        Queen => eval_queen::<PIECE_COLOR>,
-        King => eval_king::<PIECE_COLOR>,
+fn eval_bitboard(piece_color: Color, piece_type: PieceType, bb: BitBoard, eval_data: &mut EvalData) -> ScorePair {
+    let eval_func = match piece_type {
+        Pawn => eval_pawn,
+        Knight => eval_knight,
+        Bishop => eval_bishop,
+        Rook => eval_rook,
+        Queen => eval_queen,
+        King => eval_king,
     };
 
     bb.piece_indices()
-      .map(|i| eval_func(i, bb, eval_data))
+      .map(|i| eval_func(piece_color, i, bb, eval_data))
       .fold((0, 0), |a, b| (a.0 + b.0, a.1 + b.1))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Aux function to add attack values from a certain piece to the enemy king
-fn add_attack_values<const COLOR: Color>(attack_bb: BitBoard, eval_data: &mut EvalData, weights: ScorePair) {
-    let enemy = !COLOR;
+fn add_attack_values(color: Color, attack_bb: BitBoard, eval_data: &mut EvalData, weights: ScorePair) {
+    let enemy = !color;
     let enemy_i = enemy.to_index();
     let outer_ring_attacks = (attack_bb & eval_data.king_outer_rings[enemy_i]).count();
     let inner_ring_attacks = (attack_bb & eval_data.king_inner_rings[enemy_i]).count();
