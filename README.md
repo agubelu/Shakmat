@@ -1,5 +1,7 @@
 # Shakmat
 
+[**Play against Shakmat online!**](https://agube.lu/shakmat)
+
 Shakmat (approx. transliteration of Russian шахмат, *checkmate*) is a chess engine with a built-in JSON API to interact with.
 
 **Current strength level:** Grandmaster, ~2600 elo (if chess.com's bot ratings are accurate)
@@ -26,8 +28,6 @@ Keep in mind that, due to the configuration present in `.cargo/config.toml`, Sha
 ## How to use Shakmat
 
 Build and run Shakmat as shown above, and it will start listening for requests.
-
-If you just want to play a game against it, you will have to use a front-end. One is being worked on right now.
 
 If you're interested in interacting with it via its API, check out the [endpoints documentation in the Wiki](https://github.com/agubelu/Shakmat/wiki/API-endpoints).
 
