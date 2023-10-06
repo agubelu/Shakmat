@@ -1,0 +1,19 @@
+[package]
+name = "shakmat-wasm"
+version = "0.1.0"
+edition = "2021"
+authors = ["https://github.com/agubelu/"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+lto = true
+opt-level = 3
+
+[dependencies]
+shakmat-core = { path = "../shakmat-core" }
+shakmat-engine = { path = "../shakmat-engine", features = ["wasm"] }
+# console_error_panic_hook = "0.1.7"
+getrandom = { features = ["js"] }
+wasm-bindgen = "0.2.87"

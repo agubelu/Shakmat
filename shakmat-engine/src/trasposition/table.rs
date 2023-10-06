@@ -1,4 +1,4 @@
-use std::mem::MaybeUninit;
+use std::mem::{MaybeUninit, self};
 use shakmat_core::Move;
 
 use super::{TTEntry, TTData, NodeType};
@@ -19,6 +19,14 @@ impl TTable {
             vec.set_len(size);
         }
         Self { ptr: vec.as_mut_ptr(), _content: vec, size }
+    }
+
+    pub fn flush(&mut self) {
+        unsafe {
+            for entry in self._content.iter_mut() {
+                entry.write(mem::zeroed());
+            }
+        }
     }
 
     // Returns a data entry from the table, if all of the following are true:

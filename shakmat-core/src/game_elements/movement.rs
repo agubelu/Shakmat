@@ -7,7 +7,7 @@ use crate::board::{Board, BitBoard};
 // Avoid clashes between the core Result and the formatter Result
 type FmtResult = std::fmt::Result;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Move {
     Normal { from: u8, to: u8 },
     PawnPromotion { from: u8, to: u8, promote_to: PieceType },

@@ -1,4 +1,9 @@
+#[cfg(not(feature = "wasm"))]
 use std::time::Instant;
+#[cfg(feature = "wasm")]
+// If WASM compilation is required, use web-time's Instant instead
+use web_time::Instant;
+
 use std::cmp::min;
 use crate::search::SearchOptions;
 

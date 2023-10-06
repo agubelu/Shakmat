@@ -77,10 +77,14 @@ pub struct SearchResult {
 
 impl Search {
     pub fn from_config(config: SearchOptions, past_positions: &[u64]) -> Self {
+
+        let mut tt = TTable::new(TRASPOSITION_TABLE_SIZE);
+        tt.flush();
+
         Self {
             timer: TimeManager::new(&config),
             max_depth: min(config.max_depth.unwrap_or(LIMIT_DEPTH as u8), LIMIT_DEPTH as u8),
-            tt: TTable::new(TRASPOSITION_TABLE_SIZE),
+            tt,
             killers: [[Move::empty(); MAX_KILLERS]; LIMIT_DEPTH + 2],
             node_count: 0,
             past_positions: past_positions.to_vec(),
@@ -173,18 +177,6 @@ impl Search {
             previous_score = score;
             depth += 1;
         }
-
-        if depth > self.max_depth {
-            // We exited the loop after reaching the maximum depth,
-            // reduce it by 1 as it is the depth that was
-            // actually reached
-            depth -= 1;
-        }
-
-        // Print some stats before returning the result
-        let total_micros = self.timer.elapsed_micros();
-        let knps = self.node_count as u64 * 1_000 / total_micros;
-        println!("KNPS: {knps}, max. depth: {depth}");
 
         SearchResult { score, best_move }
     }

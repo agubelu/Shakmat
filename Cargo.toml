@@ -3,6 +3,7 @@ members = [
     "shakmat-core",
     "shakmat-engine",
     "shakmat-server",
+    "shakmat-wasm",
 ]
 
 [profile.test]
