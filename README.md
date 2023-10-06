@@ -6,9 +6,18 @@ Shakmat (approx. transliteration of Russian шахмат, *checkmate*) is a ches
 
 Forever a work in progress. Never build a chess engine, it's a bottomless pit :')
 
+## Project structure
+Shakmat as a project is composed of several sub-crates that can be compiled independently:
+- **Shakmat-core:** Implements the chess board, movement generation and validation, and other related core utilities such as FEN encoding/decoding and Zobrist hashes (library crate).
+- **Shakmat-engine:** Implements position evaluation, best move searching and opening books (library crate).
+- **Shakmat-server:** Runs a web server that listens for requests and acts as a backend to interact with Shakmat core and engine through a REST API (binary crate).
+- **Shakmat-wasm:** Provides a WebAssembly interface layer to integrate and run Shakmat locally on web browsers (library crate).
+
 ## How to run Shakmat
 
-Simply run `cargo run --release` and Shakmat will start up and listen for requests. The default port is `8000`, it can be changed by providing the desired port number as an additional command-line argument, for example, `cargo run --release 9000`
+Simply run `cargo run --release` and Shakmat will start up and listen for requests. As of now, this will compile and run `shakmat-server` since it's the only binary crate in the workspace. You can also choose to be more explicit and run `cargo run --release -p shakmat-server`.
+
+The default port is `8000`, it can be changed by providing the desired port number as an additional command-line argument, for example, `cargo run --release 9000`
 
 Alternatively, you can compile it with `cargo build --release` and just move the generated binary somewhere else and run it.
 
