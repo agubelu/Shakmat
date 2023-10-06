@@ -15,7 +15,7 @@ pub struct TurnInfo {
 #[wasm_bindgen(getter_with_clone)]
 pub struct SearchResult {
     pub best_move: Option<String>,
-    pub eval: i16,
+    pub eval: String,
 }
 
 impl TurnInfo {

@@ -45,7 +45,7 @@ pub fn get_computer_move(
 
     SearchResult { 
         best_move: search_data.best_move.map(|mv| mv.to_string()), 
-        eval: search_data.score.score()
+        eval: search_data.score.to_string()
     }
 }
 
