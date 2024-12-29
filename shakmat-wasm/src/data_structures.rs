@@ -29,7 +29,7 @@ impl TurnInfo {
         Self {
             turn_number: board.turn_number(),
             color: board.turn_color().to_string(),
-            in_check: board.is_check(board.turn_color()),
+            in_check: board.is_check(),
             fen: board.fen(),
             moves
         }

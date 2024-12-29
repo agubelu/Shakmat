@@ -34,7 +34,7 @@ pub struct Pieces {
     pub pawns: BitBoard,
     pub rooks: BitBoard,
     pub knights: BitBoard,
-    pub bishops: BitBoard, 
+    pub bishops: BitBoard,
     pub queens: BitBoard,
     pub king: BitBoard,
 }
@@ -42,7 +42,7 @@ pub struct Pieces {
 impl Board {
     pub fn from_fen(fen: &str) -> Result<Self, String> {
         let fen_info = read_fen(fen)?;
-        let plies = (fen_info.fullmoves_since_start - 1) * 2 
+        let plies = (fen_info.fullmoves_since_start - 1) * 2
             + (fen_info.turn == Black) as u16;
 
         let mut board = Self {
@@ -164,13 +164,13 @@ impl Board {
     pub fn legal_moves(&self) -> Vec<Move> {
         self.pseudolegal_moves().into_iter()
             .filter(|mv| matches!(mv, Move::ShortCastle | Move::LongCastle) ||
-                         !self.make_move(mv).is_check(self.turn_color())
+                         !self.make_move(mv).is_check()
             )
             .collect()
     }
 
-    pub fn is_check(&self, color: Color) -> bool {
-        match color {
+    pub fn is_check(&self) -> bool {
+        match self.turn_color() {
             White => (self.white_pieces.king & self.black_attacks).is_not_empty(),
             Black => (self.black_pieces.king & self.white_attacks).is_not_empty()
         }
@@ -182,13 +182,13 @@ impl Board {
         // Return false if the current position is a check, since otherwise
         // we would return an empty list of available moves in a position that is
         // a check, which would be interpreted as a checkmate
-        let is_check = self.is_check(self.turn_color());
+        let is_check = self.is_check();
 
         let n_whites = self.all_whites.count();
         let n_blacks = self.all_blacks.count();
 
-        !is_check && (n_whites == 1 || n_whites == 2 && (self.white_pieces.bishops.count() == 1 || self.white_pieces.knights.count() == 1)) 
-                  && (n_blacks == 1 || n_blacks == 2 && (self.black_pieces.bishops.count() == 1 || self.black_pieces.knights.count() == 1)) 
+        !is_check && (n_whites == 1 || n_whites == 2 && (self.white_pieces.bishops.count() == 1 || self.white_pieces.knights.count() == 1))
+                  && (n_blacks == 1 || n_blacks == 2 && (self.black_pieces.bishops.count() == 1 || self.black_pieces.knights.count() == 1))
     }
 
     // Returns whether the current position only has pawns, or if it has
@@ -276,7 +276,7 @@ impl Board {
 
     ///////////////////////////////////////////////////////////////////////////
     /// Private auxiliary functions
-    
+
     fn move_piece(&mut self, movement: &Move) {
         // This function is called with legal moves, so we can assume
         // that the piece exists in the "from" position and can move to the
@@ -309,12 +309,12 @@ impl Board {
             let target_bb = BitBoard::from_square(target_ep);
             *self.get_pieces_mut(enemy_color).get_pieces_of_type_mut(Pawn) ^= target_bb;
             *self.piece_on_mut(target_ep) = None;
-        
+
             // The type of the captured piece is not really needed here, since it's always a pawn
             captured_piece = Some(Pawn);
             // Update the zobrist key removing the captured pawn
             self.zobrist_key ^= zobrist::get_key_for_piece(Pawn, enemy_color, target_ep);
-            
+
         // Not an en-passant, just a normal capture
         } else if (enemy_pieces & to_bb).is_not_empty() {
             self.get_pieces_mut(enemy_color).apply_mask(!to_bb);
@@ -362,7 +362,7 @@ impl Board {
         let short = matches!(movement, Move::ShortCastle);
 
         let row_start = if color == White { 0 } else { 56 };
-        
+
         let (king_from, king_to, rook_from, rook_to) = if short {
             (row_start + 3, row_start + 1, row_start, row_start + 2)
         } else {
@@ -517,7 +517,7 @@ impl Board {
         if multithread {
             pseudo_moves.into_par_iter().filter_map(|mv| {
                 let new_board = self.make_move(&mv);
-                if matches!(mv, Move::LongCastle | Move::ShortCastle) || !new_board.is_check(self.turn_color()) {
+                if matches!(mv, Move::LongCastle | Move::ShortCastle) || !new_board.is_check() {
                     Some(new_board._perft(depth - 1, false))
                 } else {
                     None
@@ -526,7 +526,7 @@ impl Board {
         } else {
             pseudo_moves.into_iter().filter_map(|mv| {
                 let new_board = self.make_move(&mv);
-                if matches!(mv, Move::LongCastle | Move::ShortCastle) || !new_board.is_check(self.turn_color()) {
+                if matches!(mv, Move::LongCastle | Move::ShortCastle) || !new_board.is_check() {
                     Some(new_board._perft(depth - 1, false))
                 } else {
                     None
@@ -551,7 +551,7 @@ impl Display for Board {
         for color in [Black, White].into_iter() {
             for piece_type in [King, Queen, Pawn, Knight, Bishop, Rook].into_iter() {
                 let piece_bb = self.get_pieces(color).get_pieces_of_type(piece_type);
-                // The pieces position atribute will be deprecated and it 
+                // The pieces position atribute will be deprecated and it
                 // doesnt matter here
                 for square in piece_bb.piece_indices() {
                     let bbsquare = Square::new(square);
