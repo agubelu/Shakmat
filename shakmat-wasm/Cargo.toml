@@ -15,5 +15,5 @@ opt-level = 3
 shakmat-core = { path = "../shakmat-core" }
 shakmat-engine = { path = "../shakmat-engine", features = ["wasm"] }
 # console_error_panic_hook = "0.1.7"
-getrandom = { features = ["js"] }
+getrandom = { version = "0.2.15", features = ["js"] }
 wasm-bindgen = "0.2.87"
