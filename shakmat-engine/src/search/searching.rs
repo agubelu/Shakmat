@@ -243,7 +243,8 @@ impl Search {
         // If the current side to move is in check, extend the search by 1 more move to
         // avoid misevaluating dangerous positions and prevent the search from
         // entering in quiesence mode
-        let is_check = board.is_check();
+        let color_moving = board.turn_color();
+        let is_check = board.is_check(color_moving);
         if is_check {
             depth_remaining += 1;
         }
@@ -329,14 +330,14 @@ impl Search {
             // This is a pseudo-legal move, we must make sure that the side moving is not in check.
             // Castling moves are always legal since their legality is checked in move generation,
             // for anything else, we must check that the moving side isn't in check
-            if matches!(mv, Move::Normal{..} | Move::PawnPromotion{..}) && next_board.is_check() {
+            if matches!(mv, Move::Normal{..} | Move::PawnPromotion{..}) && next_board.is_check(color_moving) {
                 continue;
             }
 
             // Some information about this move
             let is_capture = mv.is_capture(board);
             let cap_or_prom = is_capture || matches!(mv, Move::PawnPromotion{..});
-            let gives_check = next_board.is_check();
+            let gives_check = next_board.is_check(next_board.turn_color());
             let is_pawn_move = mv.piece_moving(board) == Pawn;
             let is_tactical = is_check || gives_check || cap_or_prom || is_pawn_move || self.is_killer(&mv, current_depth);
 
@@ -455,7 +456,7 @@ impl Search {
             // Otherwise, there are no legal moves available.
             // Check whether this is a checkmate or a draw, and assign
             // the corresponding score.
-            best_score = if board.is_check() {
+            best_score = if board.is_check(color_moving) {
                 // Checkmate
                 Evaluation::min_val() + current_depth as EvalScore
             } else {
@@ -521,7 +522,7 @@ impl Search {
             // the moving side is not in check. Castling moves are not generated now so we
             // don't have to worry about them
             let next_board = board.make_move(&mv);
-            if next_board.is_check() {
+            if next_board.is_check(board.turn_color()) {
                 continue;
             }
 
