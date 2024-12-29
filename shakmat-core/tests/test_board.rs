@@ -1,3 +1,4 @@
+use dashmap::DashMap;
 use shakmat_core::{Board, DEFAULT_FEN};
 
 // Perft positions and results obtained from: https://www.chessprogramming.org/Perft_Results
@@ -5,8 +6,9 @@ use shakmat_core::{Board, DEFAULT_FEN};
 
 fn test_perft(fen: &str, expected: &[u64]) {
     let board = Board::from_fen(fen).unwrap();
+    let cache = DashMap::default();
     for (i, expected) in expected.iter().copied().enumerate() {
-        assert_eq!(board.perft(i + 1), expected);
+        assert_eq!(board.perft_with_cache(i + 1, &cache), expected);
     }
 }
 
